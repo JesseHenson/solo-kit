@@ -198,8 +198,18 @@ def usage_instructions() -> str:
     text = f.read_text()
     if text.startswith("---"):
         text = text.split("---", 2)[2]
-    return first_run_banner() + text.strip() + REFERENCES + roster_summary() + budget_note() + running_note() + stale_timer_note() + update_note()
+    return first_run_banner() + LEAD + text.strip() + REFERENCES + roster_summary() + budget_note() + running_note() + stale_timer_note() + update_note()
 
+
+LEAD = """A timer and timesheets over one plaintext file the user owns. Rules for every call:
+one timer at a time; every entry needs a client; pass whatever spelling the user
+typed and the server resolves it to the roster below; never round a report unless
+they said they bill that way; quote the numbers the tools return rather than
+recomputing them. Tools: start_timer, stop_timer, current_timer, log_entry,
+timesheet_report, add_client, list_clients, remove_client, remove_project,
+set_budget, budget_status, set_default_rounding, dashboard.
+
+"""
 
 REFERENCES = """
 

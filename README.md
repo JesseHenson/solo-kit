@@ -19,12 +19,27 @@ server hands Claude its own usage instructions on connect.
 
     git clone https://github.com/JesseHenson/solo-kit.git
     cd solo-kit
-    ./install.sh time-log
+    ./install.sh time-log            # Claude Desktop
+    ./install.sh time-log --codex    # Codex CLI and the ChatGPT app
 
-Registers the MCP server in `claude_desktop_config.json` (backing up the old
-one) and packages the skill zip for Settings > Capabilities > Skills. Requires
-[uv](https://docs.astral.sh/uv/getting-started/installation/). Updating is
-`git pull`; data lives outside the repo, so a pull never touches it.
+Requires [uv](https://docs.astral.sh/uv/getting-started/installation/) and
+nothing else. Updating is `git pull` — the config points at the repo, so there
+is no reinstall. Data lives outside the repo, so a pull never touches it.
+
+This is the better path if you have it. The bundle exists because Claude Desktop
+has no other install route; a clone updates in place and works everywhere.
+
+## Where these run
+
+| Client | How | Caveat |
+|---|---|---|
+| Claude Code | `./install.sh` or a clone | — |
+| Claude Desktop | `.mcpb` bundle, or `./install.sh` | Reinstall to update |
+| Codex CLI | `./install.sh --codex` | No MCP prompts |
+| ChatGPT desktop app | Same config as Codex | No MCP prompts |
+
+An MCP server is an MCP server. The tools, the guides, and the server's own
+instructions travel to all of them; only the packaging differs.
 
 ## Tools
 

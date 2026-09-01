@@ -9,12 +9,15 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TOOL="${1:-}"
+CLIENT="${2:---claude}"
 CONFIG="${CLAUDE_DESKTOP_CONFIG:-$HOME/Library/Application Support/Claude/claude_desktop_config.json}"
 
 available() { ls -1 "$ROOT/tools"; }
 
 if [ -z "$TOOL" ] || [ ! -d "$ROOT/tools/$TOOL" ]; then
-  echo "usage: ./install.sh <tool>"
+  echo "usage: ./install.sh <tool> [--claude|--codex]"
+  echo "  --claude  Claude Desktop (default)"
+  echo "  --codex   Codex CLI and the ChatGPT desktop app, which share one config"
   echo "available:"; available | sed 's/^/  /'
   exit 1
 fi
@@ -23,6 +26,34 @@ command -v uv >/dev/null || {
   echo "uv is required: https://docs.astral.sh/uv/getting-started/installation/" >&2
   exit 1
 }
+
+SERVER_PATH="$ROOT/tools/$TOOL/server.py"
+
+# Codex CLI and the ChatGPT app read the same ~/.codex/config.toml
+if [ "$CLIENT" = "--codex" ]; then
+  CODEX="${CODEX_CONFIG:-$HOME/.codex/config.toml}"
+  mkdir -p "$(dirname "$CODEX")"
+  touch "$CODEX"
+  if grep -q "^\[mcp_servers\.$TOOL\]" "$CODEX"; then
+    echo "'$TOOL' is already in $CODEX — leaving it alone."
+  else
+    cp "$CODEX" "$CODEX.bak" 2>/dev/null || true
+    printf '\n[mcp_servers.%s]\ncommand = "uv"\nargs = ["run", "--script", "%s"]\n' \
+      "$TOOL" "$SERVER_PATH" >> "$CODEX"
+    echo "Added '$TOOL' to $CODEX"
+  fi
+  cat <<EOF
+
+Restart Codex (or the ChatGPT app) and it'll pick the server up. Equivalent
+one-liner if you'd rather let Codex write its own config:
+
+  codex mcp add $TOOL -- uv run --script $SERVER_PATH
+
+Note: Codex doesn't support MCP prompts, so the "Draft an invoice" style
+shortcuts won't appear. Everything else — tools, guides, instructions — works.
+EOF
+  exit 0
+fi
 
 if [ ! -e "$CONFIG" ]; then
   case "$(uname -s)" in
