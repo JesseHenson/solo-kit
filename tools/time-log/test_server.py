@@ -4,6 +4,7 @@
 # ///
 """Covers the arithmetic and date parsing — the parts that can be quietly wrong."""
 
+import pathlib
 from datetime import date
 
 import pytest
@@ -201,3 +202,18 @@ def test_the_timer_outlives_the_process_that_started_it(tmp_path, monkeypatch):
     assert "A timer is running" in s.running_note()
     assert "0.00h for Acme" in s.stop_timer()
     assert s.running_note() == ""
+
+
+def test_an_existing_log_is_not_orphaned_by_the_new_default(tmp_path, monkeypatch):
+    """Changing the default folder must never strand someone's existing hours."""
+    monkeypatch.delenv("TIME_LOG_DIR", raising=False)
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr(pathlib.Path, "home", classmethod(lambda cls: tmp_path))
+    import importlib, server as s
+    importlib.reload(s)
+    assert s.data_dir() == tmp_path / "Documents" / "Time Log"
+
+    legacy = tmp_path / ".time-log"
+    legacy.mkdir(exist_ok=True)
+    (legacy / "entries.jsonl").write_text("{}\n")
+    assert s.data_dir() == legacy

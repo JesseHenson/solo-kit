@@ -32,7 +32,18 @@ from mcp.server.mcpserver import MCPServer
 # ---------------------------------------------------------------- storage
 
 def data_dir() -> Path:
-    d = Path(os.environ.get("TIME_LOG_DIR", Path.home() / ".time-log"))
+    """Somewhere the owner can actually find it.
+
+    A hidden dotfolder is invisible in Finder, which makes "your data is yours"
+    a claim rather than a fact. New installs get a visible folder; anyone who
+    already has a log in the old place keeps using it, untouched.
+    """
+    override = os.environ.get("TIME_LOG_DIR")
+    if override:
+        d = Path(override)
+    else:
+        legacy = Path.home() / ".time-log"
+        d = legacy if (legacy / "entries.jsonl").exists() else Path.home() / "Documents" / "Time Log"
     d.mkdir(parents=True, exist_ok=True)
     return d
 

@@ -2,9 +2,9 @@
   "manifest_version": "0.4",
   "name": "time-log",
   "display_name": "Time Log",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "description": "Timer and timesheet reports over a plaintext file on your own machine.",
-  "long_description": "Start and stop a timer, log time after the fact, and ask for totals by client, project, or period. Entries are one JSON object per line in a file you own and can read, grep, or back up \u2014 nothing is stored on anyone else's server.",
+  "long_description": "Track your hours by talking: \"start a timer for Acme\", \"log 90 minutes to the redesign\", \"what did I bill Acme this week?\" Your hours are saved as a plain file in your Documents folder that you can open, back up, or take elsewhere at any time. Nothing is stored on anyone else's server, and there is no account and no subscription.",
   "author": {
     "name": "Jesse Henson"
   },
@@ -26,9 +26,9 @@
   "user_config": {
     "data_dir": {
       "type": "directory",
-      "title": "Where to keep your time log",
-      "description": "Entries are written to entries.jsonl in this folder. Pick a synced folder if you want it backed up.",
-      "default": "${HOME}/.time-log",
+      "title": "Where to keep your hours",
+      "description": "A folder for your time log. The default is fine - you can change it later.",
+      "default": "${HOME}/Documents/Time Log",
       "required": false
     }
   },
