@@ -2,7 +2,7 @@
   "manifest_version": "0.4",
   "name": "time-log",
   "display_name": "Time Log",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Timer and timesheet reports over a plaintext file on your own machine.",
   "long_description": "Start and stop a timer, log time after the fact, and ask for totals by client, project, or period. Entries are one JSON object per line in a file you own and can read, grep, or back up — nothing is stored on anyone else's server.",
   "author": { "name": "Jesse Henson" },
@@ -29,7 +29,11 @@
     { "name": "stop_timer", "description": "Stop the timer and log the session" },
     { "name": "current_timer", "description": "Report what the timer is on now" },
     { "name": "log_entry", "description": "Log time after the fact" },
-    { "name": "timesheet_report", "description": "Summarize logged time by client, project, and period" }
+    { "name": "timesheet_report", "description": "Summarize logged time by client, project, and period" },
+    { "name": "add_client", "description": "Add or update a client on the roster" },
+    { "name": "list_clients", "description": "Show the client roster and default rounding" },
+    { "name": "remove_client", "description": "Take a client off the roster" },
+    { "name": "set_default_rounding", "description": "Set the billing increment reports round to" }
   ],
   "keywords": ["time tracking", "timesheet", "billing", "invoicing", "freelance"],
   "license": "MIT"

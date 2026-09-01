@@ -7,7 +7,8 @@
 from datetime import date
 
 import pytest
-from server import resolve_window, round_minutes, select, summarize
+from server import (resolve_client, resolve_window, round_minutes, select, summarize,
+                    unknown_client_note)
 
 WED = date(2026, 8, 26)  # a Wednesday
 
@@ -53,3 +54,31 @@ def test_summarize_rounds_each_group_not_the_total():
     s = summarize(rows, 15)
     assert s["total"] == 30  # two lines rounded to 15 each, not one 20 rounded to 30
     assert s["count"] == 2
+
+
+# --- roster ---------------------------------------------------------------
+
+ROSTER = {"clients": [{"name": "Acme Industries", "aliases": ["Acme", "acme llc"]},
+                      {"name": "Beta Co", "aliases": []}],
+          "default_round_to": 15}
+
+
+@pytest.mark.parametrize("typed,expected", [
+    ("Acme Industries", "Acme Industries"),
+    ("acme industries", "Acme Industries"),
+    ("Acme", "Acme Industries"),
+    ("ACME LLC", "Acme Industries"),
+    ("  Beta Co ", "Beta Co"),
+    ("Gamma", None),
+])
+def test_resolve_client_collapses_spellings(typed, expected):
+    assert resolve_client(typed, ROSTER) == expected
+
+
+def test_unknown_client_note_names_the_roster():
+    note = unknown_client_note("Gamma", ROSTER)
+    assert "Gamma" in note and "Acme Industries" in note and "Beta Co" in note
+
+
+def test_unknown_client_note_is_silent_on_an_empty_roster():
+    assert unknown_client_note("Gamma", {"clients": [], "default_round_to": 1}) == ""

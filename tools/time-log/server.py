@@ -40,6 +40,46 @@ def running_file() -> Path:
     return data_dir() / "running.json"
 
 
+def roster_file() -> Path:
+    return data_dir() / "clients.json"
+
+
+def load_roster() -> dict:
+    f = roster_file()
+    data = json.loads(f.read_text()) if f.exists() else {}
+    data.setdefault("clients", [])
+    data.setdefault("default_round_to", 1)
+    return data
+
+
+def save_roster(roster: dict) -> None:
+    roster_file().write_text(json.dumps(roster, indent=2) + "\n")
+
+
+def resolve_client(name: str, roster: dict) -> str | None:
+    """The roster's spelling of `name`, matched on the name or any alias.
+
+    Reports filter on an exact string, so "acme" and "Acme LLC" have to collapse
+    into one name at write time — after the fact there is nothing to join on.
+    """
+    n = name.strip().lower()
+    for c in roster["clients"]:
+        if c["name"].strip().lower() == n:
+            return c["name"]
+        if any(a.strip().lower() == n for a in c.get("aliases", [])):
+            return c["name"]
+    return None
+
+
+def unknown_client_note(name: str, roster: dict) -> str:
+    if not roster["clients"]:
+        return ""
+    known = ", ".join(c["name"] for c in roster["clients"])
+    return (f"\nNOTE: '{name}' is not on the roster ({known}). If it's a new client, "
+            "call add_client. If it's a different spelling of one of those, say so "
+            "and log it under the roster spelling instead.")
+
+
 def read_entries() -> list[dict]:
     f = entries_file()
     if not f.exists():
@@ -69,19 +109,39 @@ def usage_instructions() -> str:
     text = f.read_text()
     if text.startswith("---"):
         text = text.split("---", 2)[2]
-    return first_run_banner() + text.strip()
+    return first_run_banner() + text.strip() + roster_summary()
+
+
+def roster_summary() -> str:
+    """Appended to the instructions, so the roster is known without a tool call."""
+    roster = load_roster()
+    if not roster["clients"]:
+        return ""
+    lines = ["\n\n## This user's roster\n"]
+    for c in roster["clients"]:
+        bits = [c["name"]]
+        if c.get("aliases"):
+            bits.append("also called " + ", ".join(c["aliases"]))
+        if c.get("rate_per_hour"):
+            bits.append(f"${c['rate_per_hour']}/hr")
+        lines.append("- " + " — ".join(bits))
+    rounding = roster["default_round_to"]
+    lines.append(f"\nDefault rounding: {rounding} minute(s)"
+                 + (" — i.e. exact time." if rounding <= 1 else ", applied unless asked otherwise."))
+    lines.append("Use these spellings. Don't ask for a client name you can infer from this list.")
+    return "\n".join(lines)
 
 
 def first_run_banner() -> str:
     """Told at connect time, so a fresh install onboards without being asked."""
     f = entries_file()
-    if f.exists() and f.read_text().strip():
+    if (f.exists() and f.read_text().strip()) or load_roster()["clients"]:
         return ""
     return ("STATUS: nothing has ever been logged — this is a fresh install. "
             "Follow the First run section below before anything else.\n\n")
 
 
-mcp = MCPServer(name="time-log", version="0.1.0", instructions=usage_instructions())
+mcp = MCPServer(name="time-log", version="0.2.0", instructions=usage_instructions())
 
 
 # ------------------------------------------------------------ pure helpers
@@ -165,14 +225,81 @@ def hours(minutes: float) -> str:
 # ------------------------------------------------------------------ tools
 
 @mcp.tool()
+def add_client(name: str, aliases: list[str] | None = None,
+               rate_per_hour: float | None = None) -> str:
+    """Add a client to the roster, or update one that's already on it.
+
+    `aliases` are other spellings that should collapse into this name — a short
+    form, an old trading name, whatever the user actually types.
+    """
+    roster = load_roster()
+    existing = resolve_client(name, roster)
+    target = next((c for c in roster["clients"] if c["name"] == existing), None)
+    if target is None:
+        target = {"name": name.strip(), "aliases": [], "rate_per_hour": None}
+        roster["clients"].append(target)
+    for a in aliases or []:
+        if a.strip() and a.strip().lower() != target["name"].lower() and a not in target["aliases"]:
+            target["aliases"].append(a.strip())
+    if rate_per_hour is not None:
+        target["rate_per_hour"] = float(rate_per_hour)
+    save_roster(roster)
+    return f"Roster: " + ", ".join(c["name"] for c in roster["clients"])
+
+
+@mcp.tool()
+def list_clients() -> str:
+    """The client roster and the default rounding."""
+    roster = load_roster()
+    if not roster["clients"]:
+        return "No clients on the roster yet. Add one with add_client."
+    lines = []
+    for c in roster["clients"]:
+        bits = [c["name"]]
+        if c.get("aliases"):
+            bits.append("also: " + ", ".join(c["aliases"]))
+        if c.get("rate_per_hour"):
+            bits.append(f"${c['rate_per_hour']}/hr")
+        lines.append(" — ".join(bits))
+    r = roster["default_round_to"]
+    lines.append(f"\nDefault rounding: {r} minute(s)" + (" (exact time)" if r <= 1 else ""))
+    return "\n".join(lines)
+
+
+@mcp.tool()
+def remove_client(name: str) -> str:
+    """Take a client off the roster. Entries already logged are untouched."""
+    roster = load_roster()
+    canonical = resolve_client(name, roster)
+    if not canonical:
+        return f"'{name}' isn't on the roster."
+    roster["clients"] = [c for c in roster["clients"] if c["name"] != canonical]
+    save_roster(roster)
+    return f"Removed {canonical}. Past entries still carry that name."
+
+
+@mcp.tool()
+def set_default_rounding(minutes: int) -> str:
+    """Round every report to this increment by default. 1 means exact time."""
+    roster = load_roster()
+    roster["default_round_to"] = max(1, int(minutes))
+    save_roster(roster)
+    r = roster["default_round_to"]
+    return f"Reports now round up to {r} minute(s)" + (" — exact time." if r <= 1 else ".")
+
+
+@mcp.tool()
 def start_timer(client: str, project: str | None = None, notes: str | None = None) -> str:
     """Start the timer for a client. Fails if one is already running."""
     if running_file().exists():
         cur = json.loads(running_file().read_text())
         return f"Timer already running for {cur['client']} since {cur['start']}. Stop it first."
+    roster = load_roster()
+    client = resolve_client(client, roster) or client
     rec = {"client": client, "project": project, "notes": notes, "start": now().isoformat()}
     running_file().write_text(json.dumps(rec, indent=2))
-    return f"Started {client}" + (f" / {project}" if project else "") + f" at {rec['start']}."
+    return (f"Started {client}" + (f" / {project}" if project else "") + f" at {rec['start']}."
+            + unknown_client_note(client, roster))
 
 
 @mcp.tool()
@@ -213,6 +340,10 @@ def current_timer() -> str:
 def log_entry(client: str, minutes: float, project: str | None = None,
               notes: str | None = None, day: str | None = None) -> str:
     """Log time after the fact. `day` is YYYY-MM-DD, defaulting to today."""
+    roster = load_roster()
+    resolved = resolve_client(client, roster)
+    note = "" if resolved else unknown_client_note(client, roster)
+    client = resolved or client
     when = datetime.fromisoformat(day) if day else now()
     if when.tzinfo is None:
         when = when.replace(tzinfo=now().tzinfo)
@@ -225,19 +356,25 @@ def log_entry(client: str, minutes: float, project: str | None = None,
         "notes": notes,
     }
     append_entry(entry)
-    return f"Logged {hours(minutes)}h for {client} on {when.date()}."
+    return f"Logged {hours(minutes)}h for {client} on {when.date()}." + note
 
 
 @mcp.tool()
 def timesheet_report(client: str | None = None, project: str | None = None,
                      since: str | None = None, until: str | None = None,
-                     round_to: int = 1) -> str:
+                     round_to: int | None = None) -> str:
     """Summarize logged time.
 
     `since` takes a phrase (today, yesterday, this week, last week, this month,
     last month, all) or a YYYY-MM-DD date; `until` narrows the far end.
-    `round_to` rounds each line up to that many minutes (e.g. 15 or 6).
+    `round_to` rounds each line up to that many minutes (e.g. 15 or 6); left
+    out, it uses the default set with set_default_rounding.
     """
+    roster = load_roster()
+    if round_to is None:
+        round_to = roster["default_round_to"]
+    if client:
+        client = resolve_client(client, roster) or client
     start, end = resolve_window(since, until, now().date())
     rows = select(read_entries(), client, project, start, end)
     if not rows:
