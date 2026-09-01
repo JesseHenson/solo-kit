@@ -116,7 +116,13 @@ def roster_summary() -> str:
     """Appended to the instructions, so the roster is known without a tool call."""
     roster = load_roster()
     if not roster["clients"]:
-        return ""
+        names = sorted({e.get("client") for e in read_entries() if e.get("client")})
+        if not names:
+            return ""
+        return ("\n\n## No roster yet\n\nNothing is on the roster, but the log already "
+                "has entries for: " + ", ".join(names) + ". Offer once to put those on the "
+                "roster with add_client so they stop being retyped and can't drift into two "
+                "spellings. If they decline, drop it and don't ask again.")
     lines = ["\n\n## This user's roster\n"]
     for c in roster["clients"]:
         bits = [c["name"]]
@@ -141,7 +147,7 @@ def first_run_banner() -> str:
             "Follow the First run section below before anything else.\n\n")
 
 
-mcp = MCPServer(name="time-log", version="0.2.0", instructions=usage_instructions())
+mcp = MCPServer(name="time-log", version="0.2.1", instructions=usage_instructions())
 
 
 # ------------------------------------------------------------ pure helpers

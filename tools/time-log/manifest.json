@@ -2,7 +2,7 @@
   "manifest_version": "0.4",
   "name": "time-log",
   "display_name": "Time Log",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Timer and timesheet reports over a plaintext file on your own machine.",
   "long_description": "Start and stop a timer, log time after the fact, and ask for totals by client, project, or period. Entries are one JSON object per line in a file you own and can read, grep, or back up — nothing is stored on anyone else's server.",
   "author": { "name": "Jesse Henson" },
