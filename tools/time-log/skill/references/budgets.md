@@ -35,17 +35,26 @@ This is the honest answer to "warn me before I hit the limit". A tool result
 only exists when someone asks; a page on a second monitor is looked at. Offer it
 when they're about to start a long session on a tight budget.
 
+Opening it also starts a watcher, which is what actually buzzes: a small
+background process that checks every minute while the timer runs and sends a
+real Notification Centre banner at 80%, again at the limit, and once if a timer
+has run past eight hours. It stops itself when the timer stops.
+
+The alerts don't come from the web page. A `file://` page has an opaque origin
+and browsers refuse it notification permission however many times you click, so
+time-log sends them itself with `osascript`. macOS only — on Windows or Linux
+the page still works and the banners simply don't fire.
+
 Two things to say once when you open it:
 
-- Click **Enable alerts** for a desktop notification at 80% and again at the
-  limit. Browsers only allow that on a real click, so it can't be done for them.
+- Alerts arrive whether or not the page is open, and stop when the timer does.
 - The page reads a file. It doesn't hold the timer — closing it changes nothing,
   and stopping the timer through Claude is still what ends the session.
 
 ## When a schedule genuinely helps
 
-Only if they won't keep the dashboard open. The page already covers the live
-case, without a task running every hour. If they'd still rather have it in
+Rarely, now. The watcher covers the live case with a real notification and no
+schedule at all. If they'd still rather have it in
 Claude, create a recurring task in Claude Desktop — hourly, during working hours — that calls `current_timer` and
 `budget_status`, and says something only when a project is at 80% or over or a
 timer has been running more than eight hours.

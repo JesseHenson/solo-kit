@@ -2,17 +2,25 @@
   "manifest_version": "0.4",
   "name": "time-log",
   "display_name": "Time Log",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Timer and timesheet reports over a plaintext file on your own machine.",
-  "long_description": "Start and stop a timer, log time after the fact, and ask for totals by client, project, or period. Entries are one JSON object per line in a file you own and can read, grep, or back up — nothing is stored on anyone else's server.",
-  "author": { "name": "Jesse Henson" },
+  "long_description": "Start and stop a timer, log time after the fact, and ask for totals by client, project, or period. Entries are one JSON object per line in a file you own and can read, grep, or back up \u2014 nothing is stored on anyone else's server.",
+  "author": {
+    "name": "Jesse Henson"
+  },
   "server": {
     "type": "uv",
     "entry_point": "server.py",
     "mcp_config": {
       "command": "uv",
-      "args": ["run", "--script", "${__dirname}/server.py"],
-      "env": { "TIME_LOG_DIR": "${user_config.data_dir}" }
+      "args": [
+        "run",
+        "--script",
+        "${__dirname}/server.py"
+      ],
+      "env": {
+        "TIME_LOG_DIR": "${user_config.data_dir}"
+      }
     }
   },
   "user_config": {
@@ -25,23 +33,71 @@
     }
   },
   "tools": [
-    { "name": "start_timer", "description": "Start the timer for a client" },
-    { "name": "stop_timer", "description": "Stop the timer and log the session" },
-    { "name": "current_timer", "description": "Report what the timer is on now" },
-    { "name": "log_entry", "description": "Log time after the fact" },
-    { "name": "timesheet_report", "description": "Summarize logged time by client, project, and period" },
-    { "name": "add_client", "description": "Add or update a client on the roster" },
-    { "name": "list_clients", "description": "Show the client roster and default rounding" },
-    { "name": "remove_client", "description": "Take a client off the roster" },
-    { "name": "remove_project", "description": "Take a project off a client" },
-    { "name": "set_budget", "description": "Budget a project in hours" },
-    { "name": "budget_status", "description": "How budgeted projects stand against their budgets" },
-    { "name": "dashboard", "description": "Open a live dashboard: running clock, budget burn, today's total" },
-    { "name": "set_default_rounding", "description": "Set the billing increment reports round to" }
+    {
+      "name": "start_timer",
+      "description": "Start the timer for a client"
+    },
+    {
+      "name": "stop_timer",
+      "description": "Stop the timer and log the session"
+    },
+    {
+      "name": "current_timer",
+      "description": "Report what the timer is on now"
+    },
+    {
+      "name": "log_entry",
+      "description": "Log time after the fact"
+    },
+    {
+      "name": "timesheet_report",
+      "description": "Summarize logged time by client, project, and period"
+    },
+    {
+      "name": "add_client",
+      "description": "Add or update a client on the roster"
+    },
+    {
+      "name": "list_clients",
+      "description": "Show the client roster and default rounding"
+    },
+    {
+      "name": "remove_client",
+      "description": "Take a client off the roster"
+    },
+    {
+      "name": "remove_project",
+      "description": "Take a project off a client"
+    },
+    {
+      "name": "set_budget",
+      "description": "Budget a project in hours"
+    },
+    {
+      "name": "budget_status",
+      "description": "How budgeted projects stand against their budgets"
+    },
+    {
+      "name": "dashboard",
+      "description": "Open a live dashboard and start desktop budget alerts"
+    },
+    {
+      "name": "set_default_rounding",
+      "description": "Set the billing increment reports round to"
+    }
   ],
-  "repository": { "type": "git", "url": "https://github.com/JesseHenson/solo-kit" },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/JesseHenson/solo-kit"
+  },
   "homepage": "https://github.com/JesseHenson/solo-kit/tree/main/tools/time-log",
   "support": "https://github.com/JesseHenson/solo-kit/issues",
-  "keywords": ["time tracking", "timesheet", "billing", "invoicing", "freelance"],
+  "keywords": [
+    "time tracking",
+    "timesheet",
+    "billing",
+    "invoicing",
+    "freelance"
+  ],
   "license": "MIT"
 }

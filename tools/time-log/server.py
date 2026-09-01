@@ -18,6 +18,9 @@ from __future__ import annotations
 import json
 import os
 import urllib.request
+import subprocess
+import sys
+import time
 import webbrowser
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -474,8 +477,88 @@ def list_clients() -> str:
     return "\n".join(lines)
 
 
+def notify(title: str, message: str, sound: bool = True) -> bool:
+    """A real Notification Center banner. macOS only; silent no-op elsewhere.
+
+    The dashboard can't do this itself — a file:// page has an opaque origin, so
+    browsers refuse it notification permission however many times you click.
+    """
+    if sys.platform != "darwin":
+        return False
+    script = (f'display notification {json.dumps(message)} with title {json.dumps(title)}'
+              + (' sound name "Ping"' if sound else ""))
+    try:
+        subprocess.run(["osascript", "-e", script], check=True, capture_output=True, timeout=15)
+        return True
+    except Exception:
+        return False
+
+
+def watch_loop() -> None:
+    """Poll while a timer runs, buzz once per threshold, exit when it stops.
+
+    Runs as a detached child of the server so alerts arrive with nobody asking.
+    It holds no state of its own: kill it any time and nothing is lost.
+    """
+    fired: set[str] = set()
+    deadline = time.time() + 12 * 3600
+    while time.time() < deadline:
+        time.sleep(60)
+        if not running_file().exists():
+            break
+        try:
+            rec = json.loads(running_file().read_text())
+            elapsed = (now() - datetime.fromisoformat(rec["start"])).total_seconds() / 3600
+        except Exception:
+            break
+        key = rec["start"]
+        if elapsed >= STALE_HOURS and f"{key}:stale" not in fired:
+            fired.add(f"{key}:stale")
+            notify("Timer still running", f"{rec['client']} — {elapsed:.0f} hours. Left on?")
+        if not rec.get("project"):
+            continue
+        rows = [b for b in budget_lines(load_roster(), read_entries(), rec["client"])
+                if b["project"] == rec["project"]]
+        if not rows:
+            continue
+        live = rows[0]["used"] + elapsed
+        budget = rows[0]["budget"]
+        if live >= budget and f"{key}:over" not in fired:
+            fired.add(f"{key}:over")
+            notify(f"{rec['project']} over budget",
+                   f"{live:.2f}h against a {budget:g}h budget.")
+        elif live / budget >= BUDGET_WARN_AT and f"{key}:warn" not in fired:
+            fired.add(f"{key}:warn")
+            notify(f"{rec['project']} at {live / budget:.0%}",
+                   f"{budget - live:.2f}h left of {budget:g}h.")
+    pidfile = data_dir() / ".watch.pid"
+    if pidfile.exists():
+        pidfile.unlink(missing_ok=True)
+
+
+def start_watcher() -> str:
+    """One watcher at a time, and never one for a timer that isn't running."""
+    if not running_file().exists():
+        return "no timer running, so nothing to watch"
+    pidfile = data_dir() / ".watch.pid"
+    if pidfile.exists():
+        try:
+            os.kill(int(pidfile.read_text()), 0)
+            return "already watching"
+        except Exception:
+            pidfile.unlink(missing_ok=True)
+    try:
+        proc = subprocess.Popen([sys.executable, str(Path(__file__).resolve()), "--watch"],
+                                start_new_session=True, stdout=subprocess.DEVNULL,
+                                stderr=subprocess.DEVNULL)
+        pidfile.write_text(str(proc.pid))
+        return "watching — it'll buzz at 80% and again at the limit, and stop when you do"
+    except Exception as e:
+        return f"couldn't start the watcher ({e})"
+
+
 @mcp.tool()
-def dashboard(open_now: bool = True) -> str:
+def dashboard(open_now: bool = True, watch: bool = True) -> str:
     """Write a live dashboard — running clock, budget burn, today's total — and open it.
 
     The page ticks the running timer in the browser and counts it against the
@@ -513,10 +596,11 @@ def dashboard(open_now: bool = True) -> str:
             webbrowser.open(out.as_uri())
         except Exception:
             pass
+    watching = start_watcher() if watch else "not watching"
     return (f"Dashboard written to {out}" + (" and opened." if open_now else ".")
-            + " It ticks the running timer against the budget and refreshes every minute. "
-            "Tell them to click 'Enable alerts' once if they want a desktop notification "
-            "when a budget gets close — the browser only allows that on a click.")
+            + " It ticks the running timer against the budget and refreshes every minute."
+            + f" Alerts: {watching}. Say that in a few words — a real Notification Centre "
+            "banner arrives at 80% and at the limit, whether or not the page is open.")
 
 
 @mcp.tool()
@@ -798,4 +882,7 @@ def getting_started() -> str:
 
 
 if __name__ == "__main__":
-    mcp.run("stdio")
+    if "--watch" in sys.argv:
+        watch_loop()
+    else:
+        mcp.run("stdio")

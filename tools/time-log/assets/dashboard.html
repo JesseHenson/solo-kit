@@ -36,8 +36,8 @@
             font-weight: 600; background: var(--warn); color: #1a1917; }
   .banner.show { display: block; }
   .banner.over { background: var(--over); color: #fff; }
-  button { font: inherit; color: var(--fg); background: var(--card); cursor: pointer;
-           border: 1px solid var(--line); border-radius: 9px; padding: 7px 13px; }
+  #alerts { border: 1px solid var(--line); border-radius: 9px; padding: 6px 11px;
+            white-space: nowrap; }
   footer { color: var(--dim); font-size: 12px; margin-top: 22px; display: flex;
            justify-content: space-between; align-items: center; gap: 12px; }
 </style>
@@ -49,7 +49,7 @@
   <div id="today" class="card"></div>
   <footer>
     <span>Updated <span id="stamp"></span> · refreshes every minute</span>
-    <button id="notify">Enable alerts</button>
+    <span id="alerts">Alerts come from time-log itself</span>
   </footer>
 </main>
 <script>
@@ -59,14 +59,6 @@ const hhmmss = s => `${pad(Math.floor(s/3600))}:${pad(Math.floor(s%3600/60))}:${
 const h2 = h => h.toFixed(2) + "h";
 
 function state(f) { return f >= 1 ? "over" : f >= DATA.warn_at ? "warn" : ""; }
-
-function alertOnce(key, title, body) {
-  const stamp = new Date().toISOString().slice(0, 10) + ":" + key;
-  try { if (localStorage.getItem(stamp)) return; localStorage.setItem(stamp, "1"); } catch (e) {}
-  if (window.Notification && Notification.permission === "granted") {
-    new Notification(title, { body, tag: key });
-  }
-}
 
 function render() {
   const r = DATA.running;
@@ -99,11 +91,9 @@ function render() {
   if (live && live.f >= 1) {
     banner.className = "banner show over";
     banner.textContent = `${r.project} is ${h2(live.used - live.budget)} over its ${live.budget}h budget.`;
-    alertOnce(r.project + ":over", "Over budget", `${r.project} passed ${live.budget}h.`);
   } else if (live && live.f >= DATA.warn_at) {
     banner.className = "banner show";
     banner.textContent = `${r.project} is at ${(live.f * 100).toFixed(0)}% of its ${live.budget}h budget — ${h2(live.budget - live.used)} left.`;
-    alertOnce(r.project + ":warn", "Budget running out", `${r.project}: ${h2(live.budget - live.used)} left.`);
   } else {
     banner.className = "banner";
   }
@@ -131,15 +121,6 @@ function paintStatic() {
     `<div class="row"><span class="who">Today</span><span class="who">${h2(DATA.today.total_hours)}</span></div>`
     + (rows || `<div class="row"><span class="sub">Nothing logged yet.</span><span></span></div>`);
   document.getElementById("stamp").textContent = new Date(DATA.generated).toLocaleTimeString();
-}
-
-document.getElementById("notify").onclick = () => {
-  if (window.Notification) Notification.requestPermission().then(p => {
-    document.getElementById("notify").textContent = p === "granted" ? "Alerts on" : "Alerts blocked";
-  });
-};
-if (window.Notification && Notification.permission === "granted") {
-  document.getElementById("notify").textContent = "Alerts on";
 }
 
 paintStatic();
