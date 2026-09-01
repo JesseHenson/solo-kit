@@ -2,7 +2,7 @@
   "manifest_version": "0.4",
   "name": "time-log",
   "display_name": "Time Log",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Timer and timesheet reports over a plaintext file on your own machine.",
   "long_description": "Start and stop a timer, log time after the fact, and ask for totals by client, project, or period. Entries are one JSON object per line in a file you own and can read, grep, or back up — nothing is stored on anyone else's server.",
   "author": { "name": "Jesse Henson" },
@@ -34,6 +34,8 @@
     { "name": "list_clients", "description": "Show the client roster and default rounding" },
     { "name": "remove_client", "description": "Take a client off the roster" },
     { "name": "remove_project", "description": "Take a project off a client" },
+    { "name": "set_budget", "description": "Budget a project in hours" },
+    { "name": "budget_status", "description": "How budgeted projects stand against their budgets" },
     { "name": "set_default_rounding", "description": "Set the billing increment reports round to" }
   ],
   "repository": { "type": "git", "url": "https://github.com/JesseHenson/solo-kit" },

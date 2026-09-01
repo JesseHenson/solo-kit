@@ -22,6 +22,8 @@ this skill decides which tool to call and how to present what comes back.
 | `remove_client(name)` | they stop working with someone |
 | `remove_project(client, project)` | a project name was wrong or is finished |
 | `set_default_rounding(minutes)` | they say how their contracts bill |
+| `set_budget(client, project, hours)` | a project is quoted or capped |
+| `budget_status(client)` | "how are we doing against the estimate?" |
 
 `since` takes `today`, `yesterday`, `this week`, `last week`, `this month`,
 `last month`, `all`, or `YYYY-MM-DD`. `until` narrows the far end.
@@ -86,6 +88,11 @@ guess — offer to set it with `add_client`.
 **A timer running eight hours or more is suspect.** You'll be told when one is.
 Raise it before anything else and offer to correct the end time; don't quietly
 log an overnight timer as a working day.
+
+**Budget warnings arrive on their own.** Logging time to a project at 80% or
+more returns a BUDGET line, and near-limit projects are listed at the start of
+each conversation. Pass it on once, plainly, and carry on — don't repeat it
+every entry, and don't turn it into advice about how they should work.
 
 **Report what the log says.** The totals come from the tool. Don't recompute
 hours in your head or adjust them to match what the user expected — if a number

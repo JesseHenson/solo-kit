@@ -50,6 +50,9 @@ def load_roster() -> dict:
     data = json.loads(f.read_text()) if f.exists() else {}
     data.setdefault("clients", [])
     data.setdefault("default_round_to", 1)
+    for c in data["clients"]:
+        c["projects"] = [{"name": p, "budget_hours": None} if isinstance(p, str) else p
+                         for p in c.get("projects", [])]
     return data
 
 
@@ -83,7 +86,7 @@ def resolve_project(client: str, project: str, roster: dict) -> str | None:
     if not rec:
         return None
     p = project.strip().lower()
-    return next((x for x in rec.get("projects", []) if x.strip().lower() == p), None)
+    return next((x["name"] for x in rec.get("projects", []) if x["name"].strip().lower() == p), None)
 
 
 def unknown_project_note(client: str, project: str, roster: dict) -> str:
@@ -93,7 +96,7 @@ def unknown_project_note(client: str, project: str, roster: dict) -> str:
         return ""
     if resolve_project(client, project, roster):
         return ""
-    known = ", ".join(rec["projects"])
+    known = ", ".join(x["name"] for x in rec["projects"])
     return (f"\nNOTE: '{project}' isn't one of {rec['name']}'s projects ({known}). New "
             "project, or another spelling of one of those? Add it with add_client's "
             "projects argument once they confirm.")
@@ -191,7 +194,7 @@ def usage_instructions() -> str:
     text = f.read_text()
     if text.startswith("---"):
         text = text.split("---", 2)[2]
-    return first_run_banner() + text.strip() + REFERENCES + roster_summary() + stale_timer_note() + update_note()
+    return first_run_banner() + text.strip() + REFERENCES + roster_summary() + budget_note() + stale_timer_note() + update_note()
 
 
 REFERENCES = """
@@ -201,6 +204,8 @@ REFERENCES = """
 - `guide://invoicing` — before drafting an invoice or working out what someone
   is owed. Covers rates, line grouping, and what never to invent.
 - `guide://reviewing` — before reading a week or month back to the user.
+- `guide://budgets` — before setting a budget, or if they ask to be checked on
+  a schedule.
 
 Read the one that applies before you start, not after. Don't read either for an
 ordinary timer or report question."""
@@ -223,7 +228,9 @@ def roster_summary() -> str:
         if c.get("aliases"):
             bits.append("also called " + ", ".join(c["aliases"]))
         if c.get("projects"):
-            bits.append("projects: " + ", ".join(c["projects"]))
+            bits.append("projects: " + ", ".join(
+                x["name"] + (f" (budget {x['budget_hours']:g}h)" if x.get("budget_hours") else "")
+                for x in c["projects"]))
         if c.get("rate_per_hour"):
             bits.append(f"${c['rate_per_hour']}/hr")
         lines.append("- " + " — ".join(bits))
@@ -235,6 +242,24 @@ def roster_summary() -> str:
 
 
 STALE_HOURS = 8
+
+
+def budget_note() -> str:
+    """Projects already near their limit, named before the user starts adding to them."""
+    try:
+        rows = [b for b in budget_lines(load_roster(), read_entries())
+                if b["fraction"] >= BUDGET_WARN_AT]
+    except Exception:
+        return ""
+    if not rows:
+        return ""
+    lines = ["\n\n## Budgets worth knowing about\n"]
+    for b in sorted(rows, key=lambda x: -x["fraction"]):
+        state = (f"{abs(b['left']):.2f}h over" if b["left"] < 0
+                 else f"{b['left']:.2f}h left of {b['budget']:g}h")
+        lines.append(f"- {b['client']} / {b['project']} — {state} ({b['fraction']:.0%})")
+    lines.append("\nMention this once if they log to one of these. Don't open with it.")
+    return "\n".join(lines)
 
 
 def stale_timer_note() -> str:
@@ -340,6 +365,46 @@ def summarize(entries: list[dict], increment: int = 1) -> dict:
     return {"groups": rounded, "total": sum(rounded.values()), "count": len(entries)}
 
 
+BUDGET_WARN_AT = 0.8
+
+
+def logged_hours(client: str, project: str, entries: list[dict]) -> float:
+    """Everything ever logged to this project — a budget spans the job, not a week."""
+    return sum(float(e["minutes"]) for e in entries
+               if e.get("client") == client and (e.get("project") or "") == project) / 60
+
+
+def budget_lines(roster: dict, entries: list[dict], only: str | None = None) -> list[dict]:
+    out = []
+    for c in roster["clients"]:
+        if only and c["name"] != only:
+            continue
+        for pj in c.get("projects", []):
+            if not pj.get("budget_hours"):
+                continue
+            used = logged_hours(c["name"], pj["name"], entries)
+            budget = float(pj["budget_hours"])
+            out.append({"client": c["name"], "project": pj["name"], "budget": budget,
+                        "used": used, "left": budget - used,
+                        "fraction": used / budget if budget else 0.0})
+    return out
+
+
+def budget_warning(client: str, project: str | None, roster: dict) -> str:
+    """Said at the moment time is logged, which is the moment it can still matter."""
+    if not project:
+        return ""
+    rows = [b for b in budget_lines(roster, read_entries(), client) if b["project"] == project]
+    if not rows or rows[0]["fraction"] < BUDGET_WARN_AT:
+        return ""
+    b = rows[0]
+    if b["left"] < 0:
+        return (f"\nBUDGET: {b['project']} is {abs(b['left']):.2f}h over its {b['budget']:g}h "
+                "budget. Say so now — this is work they may not be able to bill.")
+    return (f"\nBUDGET: {b['project']} is at {b['used']:.2f} of {b['budget']:g}h "
+            f"({b['fraction']:.0%}), {b['left']:.2f}h left. Mention it once.")
+
+
 def rate_for(client: str, roster: dict) -> float | None:
     rec = client_record(client, roster)
     return rec.get("rate_per_hour") if rec else None
@@ -376,8 +441,9 @@ def add_client(name: str, aliases: list[str] | None = None,
         if a.strip() and a.strip().lower() != target["name"].lower() and a not in target["aliases"]:
             target["aliases"].append(a.strip())
     for pj in projects or []:
-        if pj.strip() and pj.strip() not in target.setdefault("projects", []):
-            target["projects"].append(pj.strip())
+        names = [x["name"].lower() for x in target.setdefault("projects", [])]
+        if pj.strip() and pj.strip().lower() not in names:
+            target["projects"].append({"name": pj.strip(), "budget_hours": None})
     if rate_per_hour is not None:
         target["rate_per_hour"] = float(rate_per_hour)
     save_roster(roster)
@@ -396,13 +462,53 @@ def list_clients() -> str:
         if c.get("aliases"):
             bits.append("also: " + ", ".join(c["aliases"]))
         if c.get("projects"):
-            bits.append("projects: " + ", ".join(c["projects"]))
+            bits.append("projects: " + ", ".join(
+                x["name"] + (f" (budget {x['budget_hours']:g}h)" if x.get("budget_hours") else "")
+                for x in c["projects"]))
         if c.get("rate_per_hour"):
             bits.append(f"${c['rate_per_hour']}/hr")
         lines.append(" — ".join(bits))
     r = roster["default_round_to"]
     lines.append(f"\nDefault rounding: {r} minute(s)" + (" (exact time)" if r <= 1 else ""))
     return "\n".join(lines)
+
+
+@mcp.tool()
+def set_budget(client: str, project: str, hours: float) -> str:
+    """Budget a project in hours. Adds the project if it isn't on the client yet."""
+    roster = load_roster()
+    rec = client_record(client, roster)
+    if not rec:
+        return f"'{client}' isn't on the roster. Add the client first with add_client."
+    canonical = resolve_project(client, project, roster)
+    if canonical:
+        pj = next(x for x in rec["projects"] if x["name"] == canonical)
+    else:
+        pj = {"name": project.strip(), "budget_hours": None}
+        rec["projects"].append(pj)
+    pj["budget_hours"] = float(hours)
+    save_roster(roster)
+    used = logged_hours(rec["name"], pj["name"], read_entries())
+    return (f"{pj['name']} budgeted at {float(hours):g}h for {rec['name']}. "
+            f"Already logged: {used:.2f}h.")
+
+
+@mcp.tool()
+def budget_status(client: str | None = None) -> str:
+    """How every budgeted project stands. Warns at 80% and again once it's over."""
+    roster = load_roster()
+    only = resolve_client(client, roster) if client else None
+    rows = budget_lines(roster, read_entries(), only)
+    if not rows:
+        return ("No project budgets set." if not client else
+                f"No budgets set for {only or client}.") + " Set one with set_budget."
+    rows.sort(key=lambda b: -b["fraction"])
+    out = ["| Client | Project | Used | Budget | Left | |", "|---|---|---|---|---|---|"]
+    for b in rows:
+        flag = "OVER" if b["left"] < 0 else ("!" if b["fraction"] >= BUDGET_WARN_AT else "")
+        out.append(f"| {b['client']} | {b['project']} | {b['used']:.2f}h | {b['budget']:g}h "
+                   f"| {b['left']:.2f}h | {flag} |")
+    return "\n".join(out)
 
 
 @mcp.tool()
@@ -415,7 +521,7 @@ def remove_project(client: str, project: str) -> str:
     canonical = resolve_project(client, project, roster)
     if not canonical:
         return f"'{project}' isn't one of {rec['name']}'s projects."
-    rec["projects"] = [x for x in rec["projects"] if x != canonical]
+    rec["projects"] = [x for x in rec["projects"] if x["name"] != canonical]
     save_roster(roster)
     return f"Removed {canonical} from {rec['name']}."
 
@@ -479,8 +585,9 @@ def stop_timer(notes: str | None = None) -> str:
     }
     append_entry(entry)
     running_file().unlink()
-    return f"Logged {hours(minutes)}h for {entry['client']}" + (
-        f" / {entry['project']}" if entry["project"] else "")
+    return (f"Logged {hours(minutes)}h for {entry['client']}"
+            + (f" / {entry['project']}" if entry["project"] else "")
+            + budget_warning(entry["client"], entry["project"], load_roster()))
 
 
 @mcp.tool()
@@ -492,6 +599,15 @@ def current_timer() -> str:
     elapsed = (now() - datetime.fromisoformat(rec["start"])).total_seconds() / 60
     out = f"{rec['client']}" + (f" / {rec['project']}" if rec.get("project") else "") + \
         f" — running {hours(elapsed)}h (since {rec['start']})."
+    roster = load_roster()
+    if rec.get("project"):
+        rows = [b for b in budget_lines(roster, read_entries(), rec["client"])
+                if b["project"] == rec["project"]]
+        if rows:
+            b = rows[0]
+            projected = b["used"] + elapsed / 60
+            out += (f"\nBudget: {projected:.2f} of {b['budget']:g}h counting this session"
+                    f" ({projected / b['budget']:.0%}).")
     if elapsed / 60 >= STALE_HOURS:
         out += (f"\nNOTE: {elapsed / 60:.0f} hours is long enough to be a timer left on by "
                 "mistake. Check before logging it as worked time.")
@@ -521,7 +637,8 @@ def log_entry(client: str, minutes: float, project: str | None = None,
         "notes": notes,
     }
     append_entry(entry)
-    return f"Logged {hours(minutes)}h for {client} on {when.date()}." + note
+    return (f"Logged {hours(minutes)}h for {client} on {when.date()}." + note
+            + budget_warning(client, entry["project"], roster))
 
 
 @mcp.tool()
@@ -588,6 +705,23 @@ def invoicing_guide() -> str:
               mime_type="text/markdown")
 def reviewing_guide() -> str:
     return reference("reviewing")
+
+
+@mcp.resource("guide://budgets", name="Budgets and watching them",
+              description="Setting project budgets, and when a scheduled check is worth it.",
+              mime_type="text/markdown")
+def budgets_guide() -> str:
+    return reference("budgets")
+
+
+@mcp.prompt(title="Watch my project budgets")
+def watch_budgets() -> str:
+    """Set up a recurring check against project budgets."""
+    return ("Read guide://budgets, then set up a recurring Claude Desktop task that watches my "
+            "project budgets. Tell me first what the tool already warns me about without any "
+            "schedule, and what the schedule adds, so I can decide whether it's worth it. If I "
+            "want it, make it say nothing unless a project is at 80% or over, or a timer has "
+            "been running more than eight hours.")
 
 
 @mcp.prompt(title="Draft an invoice")

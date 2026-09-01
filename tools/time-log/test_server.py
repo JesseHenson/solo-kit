@@ -7,8 +7,9 @@
 from datetime import date
 
 import pytest
-from server import (as_tuple, money, rate_for, resolve_client, resolve_project, resolve_window,
-                    round_minutes, select, summarize, unknown_client_note, unknown_project_note)
+from server import (as_tuple, budget_lines, logged_hours, money, rate_for, resolve_client,
+                    resolve_project, resolve_window, round_minutes, select, summarize,
+                    unknown_client_note, unknown_project_note)
 
 WED = date(2026, 8, 26)  # a Wednesday
 
@@ -85,7 +86,8 @@ def test_unknown_client_note_is_silent_on_an_empty_roster():
 
 
 ROSTER_PROJECTS = {"clients": [{"name": "Acme Industries", "aliases": ["Acme"],
-                                "projects": ["Redesign", "Retainer"]},
+                                "projects": [{"name": "Redesign", "budget_hours": None},
+                                             {"name": "Retainer", "budget_hours": 20}]},
                                {"name": "Beta Co", "aliases": [], "projects": []}],
                    "default_round_to": 1}
 
@@ -132,3 +134,42 @@ def test_rate_for_follows_aliases_and_tolerates_no_rate():
 def test_money_formats_with_separators_and_cents():
     assert money(1837.5) == "$1,837.50"
     assert money(0) == "$0.00"
+
+
+BUDGETED = {"clients": [{"name": "Acme", "aliases": [],
+                         "projects": [{"name": "Redesign", "budget_hours": 10},
+                                      {"name": "Retainer", "budget_hours": None}]}],
+            "default_round_to": 1}
+LOGGED = [{"client": "Acme", "project": "Redesign", "minutes": 300, "start": "2026-09-01T09:00:00-06:00"},
+          {"client": "Acme", "project": "Redesign", "minutes": 240, "start": "2026-09-01T09:00:00-06:00"},
+          {"client": "Acme", "project": "Retainer", "minutes": 60, "start": "2026-09-01T09:00:00-06:00"},
+          {"client": "Other", "project": "Redesign", "minutes": 600, "start": "2026-09-01T09:00:00-06:00"}]
+
+
+def test_logged_hours_counts_only_this_client_and_project():
+    assert logged_hours("Acme", "Redesign", LOGGED) == 9.0
+
+
+def test_budget_lines_skips_projects_without_a_budget():
+    rows = budget_lines(BUDGETED, LOGGED)
+    assert [r["project"] for r in rows] == ["Redesign"]
+    assert rows[0]["left"] == 1.0
+    assert rows[0]["fraction"] == 0.9
+
+
+def test_budget_lines_reports_an_overrun_as_negative_headroom():
+    over = LOGGED + [{"client": "Acme", "project": "Redesign", "minutes": 180,
+                      "start": "2026-09-01T09:00:00-06:00"}]
+    assert budget_lines(BUDGETED, over)[0]["left"] == -2.0
+
+
+def test_a_roster_written_by_an_older_version_still_loads(tmp_path, monkeypatch):
+    monkeypatch.setenv("TIME_LOG_DIR", str(tmp_path))
+    import importlib, server as s
+    importlib.reload(s)
+    (tmp_path / "clients.json").write_text(
+        '{"clients": [{"name": "Acme", "aliases": [], "projects": ["Redesign"]}],'
+        ' "default_round_to": 15}')
+    roster = s.load_roster()
+    assert roster["clients"][0]["projects"] == [{"name": "Redesign", "budget_hours": None}]
+    assert s.resolve_project("Acme", "redesign", roster) == "Redesign"

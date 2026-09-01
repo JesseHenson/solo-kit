@@ -2,7 +2,7 @@
 # declared inline in server.py (PEP 723) so the file also runs standalone.
 [project]
 name = "time-log"
-version = "0.5.0"
+version = "0.6.0"
 description = "Timer and timesheet over a plaintext file"
 requires-python = ">=3.11"
 dependencies = ["mcp>=2.0"]
