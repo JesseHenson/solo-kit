@@ -21,6 +21,17 @@ Install by opening `time-log.mcpb` from a release, or from a clone:
 `last month`, `all`, or `YYYY-MM-DD`. `round_to` rounds each client/project line
 **up** to that many minutes; it defaults to 1, meaning no rounding.
 
+## Updating
+
+A bundle install has no update channel — the MCPB spec has no update URL and
+the host never checks — so the server checks GitHub for a newer release once a
+day and has Claude mention it in passing. Updating is then the same two clicks
+as installing: download the file again and open it. Your log is untouched.
+
+The check reads a public release tag and sends nothing about you or your log.
+Set `TIME_LOG_NO_UPDATE_CHECK=1` to turn it off. A clone install skips all of
+this — `git pull` and the change is live.
+
 ## Data
 
     ~/.time-log/entries.jsonl    one JSON object per finished session

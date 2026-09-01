@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import os
+import urllib.request
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
@@ -124,6 +125,60 @@ def append_entry(entry: dict) -> None:
         fh.write(json.dumps(entry) + "\n")
 
 
+def _version() -> str:
+    """From the manifest, so a release bumps one number in one file."""
+    try:
+        return json.loads((Path(__file__).parent / "manifest.json").read_text())["version"]
+    except Exception:
+        return "0"
+
+
+VERSION = _version()
+RELEASES = "https://api.github.com/repos/JesseHenson/solo-kit/releases/latest"
+DOWNLOAD = "https://github.com/JesseHenson/solo-kit/releases/latest/download/time-log.mcpb"
+
+
+def as_tuple(v: str) -> tuple:
+    return tuple(int(x) for x in v.strip().lstrip("v").split(".") if x.isdigit())
+
+
+def update_note() -> str:
+    """Check GitHub for a newer release, at most once a day.
+
+    A bundle install has no update path — the host never checks — so without
+    this a user simply never learns a newer version exists. It only ever reads
+    a public release tag: nothing about them or their log leaves the machine.
+    Set TIME_LOG_NO_UPDATE_CHECK=1 to switch it off.
+    """
+    if os.environ.get("TIME_LOG_NO_UPDATE_CHECK"):
+        return ""
+    cache = data_dir() / ".update-check.json"
+    latest = ""
+    try:
+        seen = json.loads(cache.read_text())
+        fresh = (datetime.now().timestamp() - seen["at"]) < 86400
+        latest = seen["latest"] if fresh else ""
+    except Exception:
+        pass
+    if not latest:
+        try:
+            req = urllib.request.Request(RELEASES, headers={"Accept": "application/vnd.github+json"})
+            with urllib.request.urlopen(req, timeout=2) as r:
+                latest = json.load(r).get("tag_name", "")
+            cache.write_text(json.dumps({"latest": latest, "at": datetime.now().timestamp()}))
+        except Exception:
+            return ""  # offline, rate-limited, whatever — never block startup
+    try:
+        if as_tuple(latest) <= as_tuple(VERSION):
+            return ""
+    except Exception:
+        return ""
+    return (f"\n\n## Update available\n\nThey're running {VERSION}; {latest} is out. Mention it "
+            f"once, in a sentence, then carry on with what they asked: download {DOWNLOAD} "
+            "and open it, and Claude Desktop replaces the tool. Their log is untouched. "
+            "Don't raise it again in this conversation.")
+
+
 def usage_instructions() -> str:
     """The skill file, minus its frontmatter, is what this server tells clients.
 
@@ -136,7 +191,7 @@ def usage_instructions() -> str:
     text = f.read_text()
     if text.startswith("---"):
         text = text.split("---", 2)[2]
-    return first_run_banner() + text.strip() + roster_summary()
+    return first_run_banner() + text.strip() + roster_summary() + update_note()
 
 
 def roster_summary() -> str:
@@ -176,7 +231,7 @@ def first_run_banner() -> str:
             "Follow the First run section below before anything else.\n\n")
 
 
-mcp = MCPServer(name="time-log", version="0.3.0", instructions=usage_instructions())
+mcp = MCPServer(name="time-log", version=VERSION, instructions=usage_instructions())
 
 
 # ------------------------------------------------------------ pure helpers

@@ -7,8 +7,8 @@
 from datetime import date
 
 import pytest
-from server import (resolve_client, resolve_project, resolve_window, round_minutes, select,
-                    summarize, unknown_client_note, unknown_project_note)
+from server import (as_tuple, resolve_client, resolve_project, resolve_window, round_minutes,
+                    select, summarize, unknown_client_note, unknown_project_note)
 
 WED = date(2026, 8, 26)  # a Wednesday
 
@@ -105,3 +105,14 @@ def test_unknown_project_note_only_fires_for_a_client_that_uses_projects():
     assert "SEO" in unknown_project_note("Acme", "SEO", ROSTER_PROJECTS)
     assert unknown_project_note("Beta Co", "anything", ROSTER_PROJECTS) == ""
     assert unknown_project_note("Acme", "redesign", ROSTER_PROJECTS) == ""
+
+
+@pytest.mark.parametrize("older,newer", [
+    ("0.3.0", "v0.4.0"), ("v0.9.0", "0.10.0"), ("1.0.0", "1.0.1"), ("0.1.0", "1.0.0"),
+])
+def test_version_comparison_orders_releases(older, newer):
+    assert as_tuple(older) < as_tuple(newer)
+
+
+def test_same_version_is_not_an_update():
+    assert not (as_tuple("v0.4.0") > as_tuple("0.4.0"))
