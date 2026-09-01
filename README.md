@@ -11,9 +11,9 @@ Send them one link — the `.mcpb` file from a release:
 2. Double-click it. Claude Desktop shows an install dialog; they pick where the
    data lives and hit Install.
 
-That's it. No terminal, no Python, no config file, no separate skill upload —
-Claude Desktop's bundle runtime supplies uv and the dependencies, and the
-server hands Claude its own usage instructions on connect.
+That's it. No terminal, no runtime to install, no config file, no separate skill
+upload. Claude Desktop ships its own Node, and the server hands Claude its usage
+instructions on connect.
 
 ## For yourself, or a technical client
 
@@ -22,8 +22,8 @@ server hands Claude its own usage instructions on connect.
     ./install.sh time-log            # Claude Desktop
     ./install.sh time-log --codex    # Codex CLI and the ChatGPT app
 
-Requires [uv](https://docs.astral.sh/uv/getting-started/installation/) and
-nothing else. Updating is `git pull` — the config points at the repo, so there
+Requires [Node.js](https://nodejs.org) for a clone install. The .mcpb bundle
+needs nothing at all — Claude Desktop carries its own Node runtime. Updating is `git pull` — the config points at the repo, so there
 is no reinstall. Data lives outside the repo, so a pull never touches it.
 
 This is the better path if you have it. The bundle exists because Claude Desktop
@@ -51,7 +51,8 @@ instructions travel to all of them; only the packaging differs.
 
 Three files under `tools/<name>/`:
 
-    server.py           MCP server, a single uv script with PEP 723 deps
+    src/server.js       MCP wiring: tools, resources, prompts
+    src/lib.js          storage and arithmetic, kept testable
     skill/SKILL.md      the usage guidance, folder name = skill name
     manifest.json       bundle metadata; copy time-log's and edit the strings
 
@@ -66,4 +67,4 @@ Keep each tool to one file of server code and one skill. Anything needing a
 build step or a deploy target belongs in its own repo instead.
 
     ./pack.sh time-log       # -> dist/time-log.mcpb, attach to a release
-    cd tools/time-log && uv run --with mcp --with pytest pytest -q
+    cd tools/time-log && npm test

@@ -1,4 +1,6 @@
 dist/
-__pycache__/
+node_modules/
+server.bundle.js
 .pytest_cache/
+__pycache__/
 .venv/

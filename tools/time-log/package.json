@@ -1,0 +1,19 @@
+{
+  "name": "time-log",
+  "version": "0.13.0",
+  "private": true,
+  "type": "module",
+  "description": "Timer and timesheet over a plaintext file",
+  "main": "src/server.js",
+  "scripts": {
+    "test": "node --test \"test/*.test.js\"",
+    "build": "esbuild src/server.js --bundle --platform=node --format=esm --minify --outfile=server.bundle.js --log-level=warning"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "zod": "^4.5.4"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
+  }
+}

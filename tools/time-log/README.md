@@ -34,8 +34,9 @@ this — `git pull` and the change is live.
 
 ## Data
 
-    ~/.time-log/entries.jsonl    one JSON object per finished session
-    ~/.time-log/running.json     the timer in flight, if any
+    ~/Documents/Time Log/entries.jsonl   one JSON object per finished session
+    ~/Documents/Time Log/running.json    the timer in flight, if any
+    ~/Documents/Time Log/clients.json    your roster: clients, projects, rates, budgets
 
 Set `TIME_LOG_DIR` to put them elsewhere — a Dropbox folder, or a git repo of
 your own if you want the log versioned.
@@ -51,4 +52,4 @@ QuickBooks Time ties itself to a $75/mo QuickBooks Online plan.
 
 ## Tests
 
-    uv run --with mcp --with pytest pytest -q
+    npm install && npm test

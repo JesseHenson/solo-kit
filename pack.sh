@@ -17,5 +17,10 @@ if [ -z "$TOOL" ] || [ ! -f "$ROOT/tools/$TOOL/manifest.json" ]; then
 fi
 
 mkdir -p "$ROOT/dist"
+
+# a bundle ships one built file, not a node_modules tree
+if [ -f "$ROOT/tools/$TOOL/package.json" ]; then
+  (cd "$ROOT/tools/$TOOL" && npm install --silent && npm run build --silent)
+fi
 npx -y @anthropic-ai/mcpb@2 validate "$ROOT/tools/$TOOL/manifest.json"
 npx -y @anthropic-ai/mcpb@2 pack "$ROOT/tools/$TOOL" "$ROOT/dist/$TOOL.mcpb"

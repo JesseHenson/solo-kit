@@ -2,21 +2,19 @@
   "manifest_version": "0.4",
   "name": "time-log",
   "display_name": "Time Log",
-  "version": "0.12.0",
+  "version": "0.13.0",
   "description": "Timer and timesheet reports over a plaintext file on your own machine.",
   "long_description": "Track your hours by talking: \"start a timer for Acme\", \"log 90 minutes to the redesign\", \"what did I bill Acme this week?\" Your hours are saved as a plain file in your Documents folder that you can open, back up, or take elsewhere at any time. Nothing is stored on anyone else's server, and there is no account and no subscription.",
   "author": {
     "name": "Jesse Henson"
   },
   "server": {
-    "type": "uv",
-    "entry_point": "server.py",
+    "type": "node",
+    "entry_point": "server.bundle.js",
     "mcp_config": {
-      "command": "uv",
+      "command": "node",
       "args": [
-        "run",
-        "--script",
-        "${__dirname}/server.py"
+        "${__dirname}/server.bundle.js"
       ],
       "env": {
         "TIME_LOG_DIR": "${user_config.data_dir}"

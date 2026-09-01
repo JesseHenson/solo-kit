@@ -22,12 +22,15 @@ if [ -z "$TOOL" ] || [ ! -d "$ROOT/tools/$TOOL" ]; then
   exit 1
 fi
 
-command -v uv >/dev/null || {
-  echo "uv is required: https://docs.astral.sh/uv/getting-started/installation/" >&2
+command -v node >/dev/null || {
+  echo "Node.js is required for a clone install: https://nodejs.org" >&2
+  echo "(The .mcpb bundle needs nothing — Claude Desktop carries its own Node.)" >&2
   exit 1
 }
 
-SERVER_PATH="$ROOT/tools/$TOOL/server.py"
+[ -d "$ROOT/tools/$TOOL/node_modules" ] || (cd "$ROOT/tools/$TOOL" && npm install --silent)
+
+SERVER_PATH="$ROOT/tools/$TOOL/src/server.js"
 
 # Codex CLI and the ChatGPT app read the same ~/.codex/config.toml
 if [ "$CLIENT" = "--codex" ]; then
@@ -38,7 +41,7 @@ if [ "$CLIENT" = "--codex" ]; then
     echo "'$TOOL' is already in $CODEX — leaving it alone."
   else
     cp "$CODEX" "$CODEX.bak" 2>/dev/null || true
-    printf '\n[mcp_servers.%s]\ncommand = "uv"\nargs = ["run", "--script", "%s"]\n' \
+    printf '\n[mcp_servers.%s]\ncommand = "node"\nargs = ["%s"]\n' \
       "$TOOL" "$SERVER_PATH" >> "$CODEX"
     echo "Added '$TOOL' to $CODEX"
   fi
@@ -47,7 +50,7 @@ if [ "$CLIENT" = "--codex" ]; then
 Restart Codex (or the ChatGPT app) and it'll pick the server up. Equivalent
 one-liner if you'd rather let Codex write its own config:
 
-  codex mcp add $TOOL -- uv run --script $SERVER_PATH
+  codex mcp add $TOOL -- node $SERVER_PATH
 
 Note: Codex doesn't support MCP prompts, so the "Draft an invoice" style
 shortcuts won't appear. Everything else — tools, guides, instructions — works.
@@ -63,21 +66,18 @@ if [ ! -e "$CONFIG" ]; then
   esac
 fi
 
-SERVER="$ROOT/tools/$TOOL/server.py"
+SERVER="$ROOT/tools/$TOOL/src/server.js"
 
 # --- 1. register the MCP server, leaving every other key alone -------------
 cp "$CONFIG" "$CONFIG.bak"
-TOOL="$TOOL" SERVER="$SERVER" CONFIG="$CONFIG" uv run --quiet python - <<'PY'
-import json, os, pathlib
-config = pathlib.Path(os.environ["CONFIG"])
-data = json.loads(config.read_text() or "{}")
-servers = data.setdefault("mcpServers", {})
-servers[os.environ["TOOL"]] = {
-    "command": "uv",
-    "args": ["run", "--script", os.environ["SERVER"]],
-}
-config.write_text(json.dumps(data, indent=2) + "\n")
-PY
+TOOL="$TOOL" SERVER="$SERVER" CONFIG="$CONFIG" node -e '
+const fs = require("fs");
+const config = process.env.CONFIG;
+const data = JSON.parse(fs.readFileSync(config, "utf8") || "{}");
+data.mcpServers ??= {};
+data.mcpServers[process.env.TOOL] = { command: "node", args: [process.env.SERVER] };
+fs.writeFileSync(config, JSON.stringify(data, null, 2) + "\n");
+'
 echo "Registered '$TOOL' in $(basename "$CONFIG") (previous copy at $CONFIG.bak)"
 
 # --- 2. package the skill, folder at the zip root -------------------------
