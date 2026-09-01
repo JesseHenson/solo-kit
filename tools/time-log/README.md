@@ -3,6 +3,8 @@
 A timer and timesheet report over one plaintext file. Replaces the part of
 QuickBooks Time a solo operator actually uses.
 
+Install by opening `time-log.mcpb` from a release, or from a clone:
+
     ./install.sh time-log     # from the repo root
 
 ## Tools

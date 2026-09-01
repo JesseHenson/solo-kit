@@ -1,0 +1,36 @@
+{
+  "manifest_version": "0.4",
+  "name": "time-log",
+  "display_name": "Time Log",
+  "version": "0.1.0",
+  "description": "Timer and timesheet reports over a plaintext file on your own machine.",
+  "long_description": "Start and stop a timer, log time after the fact, and ask for totals by client, project, or period. Entries are one JSON object per line in a file you own and can read, grep, or back up — nothing is stored on anyone else's server.",
+  "author": { "name": "Jesse Henson" },
+  "server": {
+    "type": "uv",
+    "entry_point": "server.py",
+    "mcp_config": {
+      "command": "uv",
+      "args": ["run", "--script", "${__dirname}/server.py"],
+      "env": { "TIME_LOG_DIR": "${user_config.data_dir}" }
+    }
+  },
+  "user_config": {
+    "data_dir": {
+      "type": "directory",
+      "title": "Where to keep your time log",
+      "description": "Entries are written to entries.jsonl in this folder. Pick a synced folder if you want it backed up.",
+      "default": "${HOME}/.time-log",
+      "required": false
+    }
+  },
+  "tools": [
+    { "name": "start_timer", "description": "Start the timer for a client" },
+    { "name": "stop_timer", "description": "Stop the timer and log the session" },
+    { "name": "current_timer", "description": "Report what the timer is on now" },
+    { "name": "log_entry", "description": "Log time after the fact" },
+    { "name": "timesheet_report", "description": "Summarize logged time by client, project, and period" }
+  ],
+  "keywords": ["time tracking", "timesheet", "billing", "invoicing", "freelance"],
+  "license": "MIT"
+}

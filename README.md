@@ -1,21 +1,30 @@
 # solo-kit
 
-Small tools that replace a SaaS subscription with a skill, an MCP server, and a
-plaintext file. One folder per tool. Clone the repo, run the installer, done.
+Small tools that replace a SaaS subscription with an MCP server, a skill, and a
+plaintext file you own. One folder per tool.
 
-## Install a tool
+## For the person you're giving it to
+
+Send them one link — the `.mcpb` file from a release:
+
+1. Download `time-log.mcpb`
+2. Double-click it. Claude Desktop shows an install dialog; they pick where the
+   data lives and hit Install.
+
+That's it. No terminal, no Python, no config file, no separate skill upload —
+Claude Desktop's bundle runtime supplies uv and the dependencies, and the
+server hands Claude its own usage instructions on connect.
+
+## For yourself, or a technical client
 
     git clone https://github.com/JesseHenson/solo-kit.git
     cd solo-kit
     ./install.sh time-log
 
-Requires [uv](https://docs.astral.sh/uv/getting-started/installation/); no other
-runtime to set up. The installer registers the MCP server in Claude Desktop's
-config (backing up the old one) and packages the skill as a zip. It then tells
-you the two manual steps Claude Desktop still requires: restart the app, and
-upload the zip under **Settings > Capabilities > Skills**.
-
-Updating is `git pull`. Data lives outside the repo, so a pull can never touch it.
+Registers the MCP server in `claude_desktop_config.json` (backing up the old
+one) and packages the skill zip for Settings > Capabilities > Skills. Requires
+[uv](https://docs.astral.sh/uv/getting-started/installation/). Updating is
+`git pull`; data lives outside the repo, so a pull never touches it.
 
 ## Tools
 
@@ -25,17 +34,21 @@ Updating is `git pull`. Data lives outside the repo, so a pull can never touch i
 
 ## Adding a tool
 
-A tool is a folder under `tools/` with two things in it:
+Three files under `tools/<name>/`:
 
-    tools/<name>/
-      server.py           MCP server, a single uv script with PEP 723 deps
-      skill/SKILL.md      the skill, folder name = skill name
+    server.py           MCP server, a single uv script with PEP 723 deps
+    skill/SKILL.md      the usage guidance, folder name = skill name
+    manifest.json       bundle metadata; copy time-log's and edit the strings
 
-`install.sh` is generic — it reads the folder, so nothing here needs editing
-when a tool is added. Keep each tool to one file of server code and one skill;
-anything that needs a build step or a deploy target belongs in its own repo
-instead.
+`install.sh` and `pack.sh` are both generic over `tools/`, so nothing here needs
+editing when a tool is added.
 
-Run a tool's tests with:
+**SKILL.md is the only copy of the usage guidance.** `server.py` reads it at
+startup and sends it as the MCP server's `instructions`, so a bundle install
+gets the same text without a skill upload. Don't restate it in the manifest.
 
-    cd tools/<name> && uv run --with mcp --with pytest pytest -q
+Keep each tool to one file of server code and one skill. Anything needing a
+build step or a deploy target belongs in its own repo instead.
+
+    ./pack.sh time-log       # -> dist/time-log.mcpb, attach to a release
+    cd tools/time-log && uv run --with mcp --with pytest pytest -q

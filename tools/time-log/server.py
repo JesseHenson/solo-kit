@@ -22,7 +22,23 @@ from pathlib import Path
 
 from mcp.server.mcpserver import MCPServer
 
-mcp = MCPServer(name="time-log", version="0.1.0")
+
+def usage_instructions() -> str:
+    """The skill file, minus its frontmatter, is what this server tells clients.
+
+    One source for both surfaces: Claude Code loads skill/SKILL.md as a skill,
+    and a bundle install gets the same text over MCP, where there is no skill.
+    """
+    f = Path(__file__).parent / "skill" / "SKILL.md"
+    if not f.exists():
+        return "Track billable time in a plaintext log. Call timesheet_report for totals."
+    text = f.read_text()
+    if text.startswith("---"):
+        text = text.split("---", 2)[2]
+    return text.strip()
+
+
+mcp = MCPServer(name="time-log", version="0.1.0", instructions=usage_instructions())
 
 
 # ---------------------------------------------------------------- storage
