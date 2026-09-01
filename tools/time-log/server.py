@@ -191,7 +191,19 @@ def usage_instructions() -> str:
     text = f.read_text()
     if text.startswith("---"):
         text = text.split("---", 2)[2]
-    return first_run_banner() + text.strip() + roster_summary() + update_note()
+    return first_run_banner() + text.strip() + REFERENCES + roster_summary() + stale_timer_note() + update_note()
+
+
+REFERENCES = """
+
+## Deeper guidance, read only when it applies
+
+- `guide://invoicing` — before drafting an invoice or working out what someone
+  is owed. Covers rates, line grouping, and what never to invent.
+- `guide://reviewing` — before reading a week or month back to the user.
+
+Read the one that applies before you start, not after. Don't read either for an
+ordinary timer or report question."""
 
 
 def roster_summary() -> str:
@@ -220,6 +232,26 @@ def roster_summary() -> str:
                  + (" — i.e. exact time." if rounding <= 1 else ", applied unless asked otherwise."))
     lines.append("Use these spellings. Don't ask for a client name you can infer from this list.")
     return "\n".join(lines)
+
+
+STALE_HOURS = 8
+
+
+def stale_timer_note() -> str:
+    """A timer left running overnight is the commonest way this data goes wrong."""
+    if not running_file().exists():
+        return ""
+    try:
+        rec = json.loads(running_file().read_text())
+        elapsed = (now() - datetime.fromisoformat(rec["start"])).total_seconds() / 3600
+    except Exception:
+        return ""
+    if elapsed < STALE_HOURS:
+        return ""
+    return (f"\n\n## A timer has been running {elapsed:.0f} hours\n\n"
+            f"{rec['client']}, started {rec['start']}. That's usually a timer left on "
+            "overnight, not real work. Say so before doing anything else, and offer to stop "
+            "it with the right end time using stop_timer, or to correct it with log_entry.")
 
 
 def first_run_banner() -> str:
@@ -306,6 +338,15 @@ def summarize(entries: list[dict], increment: int = 1) -> dict:
         by_group[key] = by_group.get(key, 0.0) + float(e["minutes"])
     rounded = {k: round_minutes(v, increment) for k, v in by_group.items()}
     return {"groups": rounded, "total": sum(rounded.values()), "count": len(entries)}
+
+
+def rate_for(client: str, roster: dict) -> float | None:
+    rec = client_record(client, roster)
+    return rec.get("rate_per_hour") if rec else None
+
+
+def money(amount: float) -> str:
+    return f"${amount:,.2f}"
 
 
 def hours(minutes: float) -> str:
@@ -449,8 +490,12 @@ def current_timer() -> str:
         return "No timer running."
     rec = json.loads(running_file().read_text())
     elapsed = (now() - datetime.fromisoformat(rec["start"])).total_seconds() / 60
-    return f"{rec['client']}" + (f" / {rec['project']}" if rec.get("project") else "") + \
+    out = f"{rec['client']}" + (f" / {rec['project']}" if rec.get("project") else "") + \
         f" — running {hours(elapsed)}h (since {rec['start']})."
+    if elapsed / 60 >= STALE_HOURS:
+        out += (f"\nNOTE: {elapsed / 60:.0f} hours is long enough to be a timer left on by "
+                "mistake. Check before logging it as worked time.")
+    return out
 
 
 @mcp.tool()
@@ -503,11 +548,60 @@ def timesheet_report(client: str | None = None, project: str | None = None,
         return f"No entries for {since or 'all time'}."
     s = summarize(rows, round_to)
     lines = [f"{start} to {end} — {s['count']} entries, {hours(s['total'])}h total", ""]
-    lines.append("| Client | Project | Hours |")
-    lines.append("|---|---|---|")
+    rates = {c: rate_for(c, roster) for c, _ in s["groups"]}
+    priced = any(rates.values())
+    lines.append("| Client | Project | Hours |" + (" Amount |" if priced else ""))
+    lines.append("|---|---|---|" + ("---|" if priced else ""))
+    billable = 0.0
     for (c, p), m in sorted(s["groups"].items(), key=lambda kv: -kv[1]):
-        lines.append(f"| {c} | {p} | {hours(m)} |")
+        row = f"| {c} | {p} | {hours(m)} |"
+        if priced:
+            rate = rates.get(c)
+            if rate:
+                amount = float(hours(m)) * rate
+                billable += amount
+                row += f" {money(amount)} |"
+            else:
+                row += " — |"
+        lines.append(row)
+    if priced:
+        lines.append("")
+        lines.append(f"Billable at the rates on file: {money(billable)}"
+                     + ("" if all(rates.values()) else " — clients marked — have no rate set."))
     return "\n".join(lines)
+
+
+def reference(name: str) -> str:
+    f = Path(__file__).parent / "skill" / "references" / f"{name}.md"
+    return f.read_text() if f.exists() else f"No reference named {name}."
+
+
+@mcp.resource("guide://invoicing", name="Invoicing from the log",
+              description="How to turn logged time into invoice lines, and what not to invent.",
+              mime_type="text/markdown")
+def invoicing_guide() -> str:
+    return reference("invoicing")
+
+
+@mcp.resource("guide://reviewing", name="Reviewing the week",
+              description="How to read a period back to someone, and what's worth flagging.",
+              mime_type="text/markdown")
+def reviewing_guide() -> str:
+    return reference("reviewing")
+
+
+@mcp.prompt(title="Draft an invoice")
+def draft_invoice() -> str:
+    """Turn a period's logged time into invoice lines."""
+    return ("Draft an invoice from my time log. Read guide://invoicing first, then ask me "
+            "which client and which period before you pull any numbers.")
+
+
+@mcp.prompt(title="Review my week")
+def review_week() -> str:
+    """Read the week back, and flag what needs fixing."""
+    return ("Show me how this week went in my time log. Read guide://reviewing first, and "
+            "tell me anything that looks like forgotten or mis-logged time.")
 
 
 @mcp.prompt(title="Set up time tracking")

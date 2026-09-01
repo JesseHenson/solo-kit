@@ -7,8 +7,8 @@
 from datetime import date
 
 import pytest
-from server import (as_tuple, resolve_client, resolve_project, resolve_window, round_minutes,
-                    select, summarize, unknown_client_note, unknown_project_note)
+from server import (as_tuple, money, rate_for, resolve_client, resolve_project, resolve_window,
+                    round_minutes, select, summarize, unknown_client_note, unknown_project_note)
 
 WED = date(2026, 8, 26)  # a Wednesday
 
@@ -116,3 +116,19 @@ def test_version_comparison_orders_releases(older, newer):
 
 def test_same_version_is_not_an_update():
     assert not (as_tuple("v0.4.0") > as_tuple("0.4.0"))
+
+
+ROSTER_RATES = {"clients": [{"name": "Acme", "aliases": ["acme llc"], "rate_per_hour": 150.0},
+                            {"name": "Beta Co", "aliases": []}],
+                "default_round_to": 1}
+
+
+def test_rate_for_follows_aliases_and_tolerates_no_rate():
+    assert rate_for("acme llc", ROSTER_RATES) == 150.0
+    assert rate_for("Beta Co", ROSTER_RATES) is None
+    assert rate_for("Nobody", ROSTER_RATES) is None
+
+
+def test_money_formats_with_separators_and_cents():
+    assert money(1837.5) == "$1,837.50"
+    assert money(0) == "$0.00"
