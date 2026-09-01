@@ -21,6 +21,25 @@ this skill decides which tool to call and how to present what comes back.
 `since` takes `today`, `yesterday`, `this week`, `last week`, `this month`,
 `last month`, `all`, or `YYYY-MM-DD`. `until` narrows the far end.
 
+## First run
+
+When the server reports that nothing has been logged yet, onboard the user
+before doing anything else — briefly, in one exchange, not an interview:
+
+1. Say what this does in a sentence: a timer and timesheets over a plain file
+   on their own machine, no account and no subscription.
+2. Ask the two things that change every later answer — **who they bill**
+   (client names, as they want them to read on an invoice) and **whether they
+   bill in increments** (6 or 15 minutes) or in exact time.
+3. Offer the first action rather than explaining more: start a timer for one of
+   the clients they just named, or log time they've already worked today.
+4. Tell them the two sentences that cover most use: *"start a timer for X"* and
+   *"what did I bill X this week?"*
+
+Don't dump the tool list on them, don't explain the file format unless asked,
+and don't ask for anything the tools don't need. If they'd rather just start,
+skip the rest and start the timer.
+
 ## How to use them
 
 **One timer at a time.** `start_timer` refuses while another is running. If the

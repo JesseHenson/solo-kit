@@ -23,23 +23,6 @@ from pathlib import Path
 from mcp.server.mcpserver import MCPServer
 
 
-def usage_instructions() -> str:
-    """The skill file, minus its frontmatter, is what this server tells clients.
-
-    One source for both surfaces: Claude Code loads skill/SKILL.md as a skill,
-    and a bundle install gets the same text over MCP, where there is no skill.
-    """
-    f = Path(__file__).parent / "skill" / "SKILL.md"
-    if not f.exists():
-        return "Track billable time in a plaintext log. Call timesheet_report for totals."
-    text = f.read_text()
-    if text.startswith("---"):
-        text = text.split("---", 2)[2]
-    return text.strip()
-
-
-mcp = MCPServer(name="time-log", version="0.1.0", instructions=usage_instructions())
-
 
 # ---------------------------------------------------------------- storage
 
@@ -72,6 +55,33 @@ def read_entries() -> list[dict]:
 def append_entry(entry: dict) -> None:
     with entries_file().open("a") as fh:
         fh.write(json.dumps(entry) + "\n")
+
+
+def usage_instructions() -> str:
+    """The skill file, minus its frontmatter, is what this server tells clients.
+
+    One source for both surfaces: Claude Code loads skill/SKILL.md as a skill,
+    and a bundle install gets the same text over MCP, where there is no skill.
+    """
+    f = Path(__file__).parent / "skill" / "SKILL.md"
+    if not f.exists():
+        return "Track billable time in a plaintext log. Call timesheet_report for totals."
+    text = f.read_text()
+    if text.startswith("---"):
+        text = text.split("---", 2)[2]
+    return first_run_banner() + text.strip()
+
+
+def first_run_banner() -> str:
+    """Told at connect time, so a fresh install onboards without being asked."""
+    f = entries_file()
+    if f.exists() and f.read_text().strip():
+        return ""
+    return ("STATUS: nothing has ever been logged — this is a fresh install. "
+            "Follow the First run section below before anything else.\n\n")
+
+
+mcp = MCPServer(name="time-log", version="0.1.0", instructions=usage_instructions())
 
 
 # ------------------------------------------------------------ pure helpers
@@ -239,6 +249,13 @@ def timesheet_report(client: str | None = None, project: str | None = None,
     for (c, p), m in sorted(s["groups"].items(), key=lambda kv: -kv[1]):
         lines.append(f"| {c} | {p} | {hours(m)} |")
     return "\n".join(lines)
+
+
+@mcp.prompt(title="Set up time tracking")
+def getting_started() -> str:
+    """Onboard someone who just installed this."""
+    return ("Set up my time tracking. Tell me what this does in a sentence, ask "
+            "who I bill and whether I bill in increments, then start my first timer.")
 
 
 if __name__ == "__main__":
