@@ -24,6 +24,7 @@ this skill decides which tool to call and how to present what comes back.
 | `set_default_rounding(minutes)` | they say how their contracts bill |
 | `set_budget(client, project, hours)` | a project is quoted or capped |
 | `budget_status(client)` | "how are we doing against the estimate?" |
+| `dashboard()` | they want to watch the clock, or a long session on a tight budget |
 
 `since` takes `today`, `yesterday`, `this week`, `last week`, `this month`,
 `last month`, `all`, or `YYYY-MM-DD`. `until` narrows the far end.

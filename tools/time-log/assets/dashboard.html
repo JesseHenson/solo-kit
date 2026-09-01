@@ -1,0 +1,149 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>time-log</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #fbfaf9; --fg: #1a1917; --dim: #6b6763; --line: #e5e1dc;
+    --card: #fff; --ok: #2f7a4f; --warn: #b8730f; --over: #b3392c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #14130f; --fg: #eeebe6; --dim: #8b857d; --line: #2b2924;
+            --card: #1c1a16; --ok: #6cc08b; --warn: #e0a33e; --over: #e8695a; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 28px 20px 48px; background: var(--bg); color: var(--fg);
+         font: 15px/1.5 ui-sans-serif, -apple-system, system-ui, sans-serif; }
+  main { max-width: 640px; margin: 0 auto; }
+  h1 { font-size: 13px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase;
+       color: var(--dim); margin: 0 0 18px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+          padding: 20px; margin-bottom: 14px; }
+  .clock { font: 600 54px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+           font-variant-numeric: tabular-nums; letter-spacing: -.02em; margin: 4px 0 2px; }
+  .who { font-size: 17px; font-weight: 600; }
+  .sub { color: var(--dim); font-size: 13px; }
+  .bar { height: 10px; border-radius: 999px; background: var(--line); overflow: hidden; margin: 12px 0 6px; }
+  .bar > i { display: block; height: 100%; background: var(--ok); transition: width .4s, background .4s; }
+  .warn .bar > i { background: var(--warn); } .over .bar > i { background: var(--over); }
+  .warn .pct { color: var(--warn); } .over .pct { color: var(--over); }
+  .pct { font-weight: 600; }
+  .row { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0;
+         border-top: 1px solid var(--line); font-size: 14px; }
+  .row:first-of-type { border-top: 0; }
+  .banner { display: none; padding: 13px 16px; border-radius: 12px; margin-bottom: 14px;
+            font-weight: 600; background: var(--warn); color: #1a1917; }
+  .banner.show { display: block; }
+  .banner.over { background: var(--over); color: #fff; }
+  button { font: inherit; color: var(--fg); background: var(--card); cursor: pointer;
+           border: 1px solid var(--line); border-radius: 9px; padding: 7px 13px; }
+  footer { color: var(--dim); font-size: 12px; margin-top: 22px; display: flex;
+           justify-content: space-between; align-items: center; gap: 12px; }
+</style>
+<main>
+  <h1>time-log</h1>
+  <div id="banner" class="banner"></div>
+  <div id="timer" class="card"></div>
+  <div id="budgets"></div>
+  <div id="today" class="card"></div>
+  <footer>
+    <span>Updated <span id="stamp"></span> · refreshes every minute</span>
+    <button id="notify">Enable alerts</button>
+  </footer>
+</main>
+<script>
+const DATA = /*__DATA__*/{};
+const pad = n => String(n).padStart(2, "0");
+const hhmmss = s => `${pad(Math.floor(s/3600))}:${pad(Math.floor(s%3600/60))}:${pad(Math.floor(s%60))}`;
+const h2 = h => h.toFixed(2) + "h";
+
+function state(f) { return f >= 1 ? "over" : f >= DATA.warn_at ? "warn" : ""; }
+
+function alertOnce(key, title, body) {
+  const stamp = new Date().toISOString().slice(0, 10) + ":" + key;
+  try { if (localStorage.getItem(stamp)) return; localStorage.setItem(stamp, "1"); } catch (e) {}
+  if (window.Notification && Notification.permission === "granted") {
+    new Notification(title, { body, tag: key });
+  }
+}
+
+function render() {
+  const r = DATA.running;
+  const t = document.getElementById("timer");
+  let live = null;
+  if (r) {
+    const secs = Math.max(0, (Date.now() - new Date(r.start)) / 1000);
+    let extra = "";
+    if (r.budget_hours) {
+      live = { used: r.used_hours + secs / 3600, budget: r.budget_hours };
+      live.f = live.used / live.budget;
+      extra = `<div class="bar"><i style="width:${Math.min(100, live.f * 100)}%"></i></div>
+               <div class="sub"><span class="pct">${(live.f * 100).toFixed(0)}%</span>
+               of ${live.budget}h budget · ${h2(Math.max(0, live.budget - live.used))} left</div>`;
+    }
+    t.className = "card " + (live ? state(live.f) : "");
+    t.innerHTML = `<div class="sub">Running</div>
+      <div class="clock">${hhmmss(secs)}</div>
+      <div class="who">${r.client}${r.project ? " · " + r.project : ""}</div>${extra}`;
+    document.title = hhmmss(secs) + " · " + r.client;
+  } else {
+    t.className = "card";
+    t.innerHTML = `<div class="sub">No timer running</div>
+      <div class="clock" style="color:var(--dim)">--:--:--</div>
+      <div class="sub">Ask Claude to start one.</div>`;
+    document.title = "time-log";
+  }
+
+  const banner = document.getElementById("banner");
+  if (live && live.f >= 1) {
+    banner.className = "banner show over";
+    banner.textContent = `${r.project} is ${h2(live.used - live.budget)} over its ${live.budget}h budget.`;
+    alertOnce(r.project + ":over", "Over budget", `${r.project} passed ${live.budget}h.`);
+  } else if (live && live.f >= DATA.warn_at) {
+    banner.className = "banner show";
+    banner.textContent = `${r.project} is at ${(live.f * 100).toFixed(0)}% of its ${live.budget}h budget — ${h2(live.budget - live.used)} left.`;
+    alertOnce(r.project + ":warn", "Budget running out", `${r.project}: ${h2(live.budget - live.used)} left.`);
+  } else {
+    banner.className = "banner";
+  }
+}
+
+function paintStatic() {
+  const b = document.getElementById("budgets");
+  // the running project already has a card of its own, with a livelier number
+  const r0 = DATA.running;
+  const rest = DATA.budgets.filter(x => !(r0 && x.client === r0.client && x.project === r0.project));
+  b.innerHTML = rest.length ? rest.map(x => {
+    const f = x.used / x.budget;
+    return `<div class="card ${state(f)}">
+      <div class="who">${x.client} · ${x.project}</div>
+      <div class="bar"><i style="width:${Math.min(100, f * 100)}%"></i></div>
+      <div class="sub"><span class="pct">${(f * 100).toFixed(0)}%</span> —
+        ${h2(x.used)} of ${x.budget}h${f >= 1 ? ` · ${h2(x.used - x.budget)} over` : ` · ${h2(x.budget - x.used)} left`}</div>
+    </div>`;
+  }).join("") : "";
+
+  const rows = DATA.today.entries.map(e =>
+    `<div class="row"><span>${e.client}${e.project ? " · " + e.project : ""}</span>
+     <span>${h2(e.hours)}</span></div>`).join("");
+  document.getElementById("today").innerHTML =
+    `<div class="row"><span class="who">Today</span><span class="who">${h2(DATA.today.total_hours)}</span></div>`
+    + (rows || `<div class="row"><span class="sub">Nothing logged yet.</span><span></span></div>`);
+  document.getElementById("stamp").textContent = new Date(DATA.generated).toLocaleTimeString();
+}
+
+document.getElementById("notify").onclick = () => {
+  if (window.Notification) Notification.requestPermission().then(p => {
+    document.getElementById("notify").textContent = p === "granted" ? "Alerts on" : "Alerts blocked";
+  });
+};
+if (window.Notification && Notification.permission === "granted") {
+  document.getElementById("notify").textContent = "Alerts on";
+}
+
+paintStatic();
+render();
+setInterval(render, 1000);
+setTimeout(() => location.reload(), 60000);
+</script>

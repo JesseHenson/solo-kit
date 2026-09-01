@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 import os
 import urllib.request
+import webbrowser
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
@@ -474,6 +475,51 @@ def list_clients() -> str:
 
 
 @mcp.tool()
+def dashboard(open_now: bool = True) -> str:
+    """Write a live dashboard — running clock, budget burn, today's total — and open it.
+
+    The page ticks the running timer in the browser and counts it against the
+    budget as it goes, so someone watching sees the limit coming instead of
+    being told after they've passed it. It refreshes itself every minute.
+    """
+    roster = load_roster()
+    entries = read_entries()
+    running = None
+    if running_file().exists():
+        rec = json.loads(running_file().read_text())
+        budget = next((b for b in budget_lines(roster, entries, rec["client"])
+                       if b["project"] == rec.get("project")), None)
+        running = {"client": rec["client"], "project": rec.get("project"),
+                   "start": rec["start"],
+                   "budget_hours": budget["budget"] if budget else None,
+                   "used_hours": budget["used"] if budget else 0.0}
+    today = [e for e in entries if entry_date(e) == now().date()]
+    data = {
+        "generated": now().isoformat(),
+        "warn_at": BUDGET_WARN_AT,
+        "running": running,
+        "budgets": [{"client": b["client"], "project": b["project"],
+                     "used": round(b["used"], 2), "budget": b["budget"]}
+                    for b in sorted(budget_lines(roster, entries), key=lambda x: -x["fraction"])],
+        "today": {"total_hours": round(sum(float(e["minutes"]) for e in today) / 60, 2),
+                  "entries": [{"client": e["client"], "project": e.get("project"),
+                               "hours": round(float(e["minutes"]) / 60, 2)} for e in today]},
+    }
+    template = (Path(__file__).parent / "assets" / "dashboard.html").read_text()
+    out = data_dir() / "dashboard.html"
+    out.write_text(template.replace("/*__DATA__*/{}", json.dumps(data)))
+    if open_now:
+        try:
+            webbrowser.open(out.as_uri())
+        except Exception:
+            pass
+    return (f"Dashboard written to {out}" + (" and opened." if open_now else ".")
+            + " It ticks the running timer against the budget and refreshes every minute. "
+            "Tell them to click 'Enable alerts' once if they want a desktop notification "
+            "when a budget gets close — the browser only allows that on a click.")
+
+
+@mcp.tool()
 def set_budget(client: str, project: str, hours: float) -> str:
     """Budget a project in hours. Adds the project if it isn't on the client yet."""
     roster = load_roster()
@@ -712,6 +758,12 @@ def reviewing_guide() -> str:
               mime_type="text/markdown")
 def budgets_guide() -> str:
     return reference("budgets")
+
+
+@mcp.prompt(title="Open my timer dashboard")
+def open_dashboard() -> str:
+    """Put the running clock and budget burn on screen."""
+    return ("Open my time-log dashboard so I can watch the clock and my budget while I work.")
 
 
 @mcp.prompt(title="Watch my project budgets")
