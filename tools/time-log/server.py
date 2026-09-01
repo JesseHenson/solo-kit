@@ -198,7 +198,7 @@ def usage_instructions() -> str:
     text = f.read_text()
     if text.startswith("---"):
         text = text.split("---", 2)[2]
-    return first_run_banner() + text.strip() + REFERENCES + roster_summary() + budget_note() + stale_timer_note() + update_note()
+    return first_run_banner() + text.strip() + REFERENCES + roster_summary() + budget_note() + running_note() + stale_timer_note() + update_note()
 
 
 REFERENCES = """
@@ -264,6 +264,23 @@ def budget_note() -> str:
         lines.append(f"- {b['client']} / {b['project']} — {state} ({b['fraction']:.0%})")
     lines.append("\nMention this once if they log to one of these. Don't open with it.")
     return "\n".join(lines)
+
+
+def running_note() -> str:
+    """The timer lives in a file, so it outlives the conversation that started it."""
+    if not running_file().exists():
+        return ""
+    try:
+        rec = json.loads(running_file().read_text())
+        elapsed = (now() - datetime.fromisoformat(rec["start"])).total_seconds() / 3600
+    except Exception:
+        return ""
+    if elapsed >= STALE_HOURS:
+        return ""  # the stale warning below says it louder
+    who = rec["client"] + (f" / {rec['project']}" if rec.get("project") else "")
+    return (f"\n\n## A timer is running\n\n{who}, {elapsed:.2f}h so far, started "
+            f"{rec['start']}. It may have been started in another conversation — the timer "
+            "is a file, not chat history. Don't start another; stop this one or ask.")
 
 
 def stale_timer_note() -> str:
@@ -698,8 +715,9 @@ def start_timer(client: str, project: str | None = None, notes: str | None = Non
         cur = json.loads(running_file().read_text())
         return f"Timer already running for {cur['client']} since {cur['start']}. Stop it first."
     roster = load_roster()
-    client = resolve_client(client, roster) or client
-    note = unknown_client_note(client, roster)
+    resolved = resolve_client(client, roster)
+    note = "" if resolved else unknown_client_note(client, roster)
+    client = resolved or client
     if project:
         note += unknown_project_note(client, project, roster)
         project = resolve_project(client, project, roster) or project

@@ -173,3 +173,31 @@ def test_a_roster_written_by_an_older_version_still_loads(tmp_path, monkeypatch)
     roster = s.load_roster()
     assert roster["clients"][0]["projects"] == [{"name": "Redesign", "budget_hours": None}]
     assert s.resolve_project("Acme", "redesign", roster) == "Redesign"
+
+
+# --- regressions ----------------------------------------------------------
+
+def test_a_roster_client_never_triggers_the_unknown_note(tmp_path, monkeypatch):
+    """start_timer warned about clients that were on the roster (fixed in 0.10.0)."""
+    monkeypatch.setenv("TIME_LOG_DIR", str(tmp_path))
+    import importlib, server as s
+    importlib.reload(s)
+    s.add_client("Acme Industries", aliases=["Acme"])
+    assert "NOTE" not in s.start_timer("Acme")
+    s.stop_timer()
+    assert "NOTE" in s.start_timer("Gamma Ltd")
+
+
+def test_the_timer_outlives_the_process_that_started_it(tmp_path, monkeypatch):
+    """The timer is a file; a new conversation has to be able to pick it up."""
+    monkeypatch.setenv("TIME_LOG_DIR", str(tmp_path))
+    import importlib, server as s
+    importlib.reload(s)
+    s.add_client("Acme")
+    s.start_timer("Acme", "Redesign")
+
+    importlib.reload(s)  # stands in for a fresh conversation
+    assert "Acme" in s.current_timer()
+    assert "A timer is running" in s.running_note()
+    assert "0.00h for Acme" in s.stop_timer()
+    assert s.running_note() == ""
