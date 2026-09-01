@@ -71,6 +71,33 @@ def resolve_client(name: str, roster: dict) -> str | None:
     return None
 
 
+def client_record(name: str, roster: dict) -> dict | None:
+    canonical = resolve_client(name, roster)
+    return next((c for c in roster["clients"] if c["name"] == canonical), None)
+
+
+def resolve_project(client: str, project: str, roster: dict) -> str | None:
+    """The client's spelling of one of its projects, matched case-insensitively."""
+    rec = client_record(client, roster)
+    if not rec:
+        return None
+    p = project.strip().lower()
+    return next((x for x in rec.get("projects", []) if x.strip().lower() == p), None)
+
+
+def unknown_project_note(client: str, project: str, roster: dict) -> str:
+    """Silent for a client with no projects on file — plenty of people don't use them."""
+    rec = client_record(client, roster)
+    if not rec or not rec.get("projects"):
+        return ""
+    if resolve_project(client, project, roster):
+        return ""
+    known = ", ".join(rec["projects"])
+    return (f"\nNOTE: '{project}' isn't one of {rec['name']}'s projects ({known}). New "
+            "project, or another spelling of one of those? Add it with add_client's "
+            "projects argument once they confirm.")
+
+
 def unknown_client_note(name: str, roster: dict) -> str:
     if not roster["clients"]:
         return ""
@@ -128,6 +155,8 @@ def roster_summary() -> str:
         bits = [c["name"]]
         if c.get("aliases"):
             bits.append("also called " + ", ".join(c["aliases"]))
+        if c.get("projects"):
+            bits.append("projects: " + ", ".join(c["projects"]))
         if c.get("rate_per_hour"):
             bits.append(f"${c['rate_per_hour']}/hr")
         lines.append("- " + " — ".join(bits))
@@ -147,7 +176,7 @@ def first_run_banner() -> str:
             "Follow the First run section below before anything else.\n\n")
 
 
-mcp = MCPServer(name="time-log", version="0.2.1", instructions=usage_instructions())
+mcp = MCPServer(name="time-log", version="0.3.0", instructions=usage_instructions())
 
 
 # ------------------------------------------------------------ pure helpers
@@ -232,21 +261,27 @@ def hours(minutes: float) -> str:
 
 @mcp.tool()
 def add_client(name: str, aliases: list[str] | None = None,
-               rate_per_hour: float | None = None) -> str:
+               rate_per_hour: float | None = None,
+               projects: list[str] | None = None) -> str:
     """Add a client to the roster, or update one that's already on it.
 
     `aliases` are other spellings that should collapse into this name — a short
-    form, an old trading name, whatever the user actually types.
+    form, an old trading name, whatever the user actually types. `projects` are
+    the pieces of work billed under them; they're optional, and only clients
+    that have some get asked about an unfamiliar one.
     """
     roster = load_roster()
     existing = resolve_client(name, roster)
     target = next((c for c in roster["clients"] if c["name"] == existing), None)
     if target is None:
-        target = {"name": name.strip(), "aliases": [], "rate_per_hour": None}
+        target = {"name": name.strip(), "aliases": [], "rate_per_hour": None, "projects": []}
         roster["clients"].append(target)
     for a in aliases or []:
         if a.strip() and a.strip().lower() != target["name"].lower() and a not in target["aliases"]:
             target["aliases"].append(a.strip())
+    for pj in projects or []:
+        if pj.strip() and pj.strip() not in target.setdefault("projects", []):
+            target["projects"].append(pj.strip())
     if rate_per_hour is not None:
         target["rate_per_hour"] = float(rate_per_hour)
     save_roster(roster)
@@ -264,12 +299,29 @@ def list_clients() -> str:
         bits = [c["name"]]
         if c.get("aliases"):
             bits.append("also: " + ", ".join(c["aliases"]))
+        if c.get("projects"):
+            bits.append("projects: " + ", ".join(c["projects"]))
         if c.get("rate_per_hour"):
             bits.append(f"${c['rate_per_hour']}/hr")
         lines.append(" — ".join(bits))
     r = roster["default_round_to"]
     lines.append(f"\nDefault rounding: {r} minute(s)" + (" (exact time)" if r <= 1 else ""))
     return "\n".join(lines)
+
+
+@mcp.tool()
+def remove_project(client: str, project: str) -> str:
+    """Take a project off a client. Entries already logged are untouched."""
+    roster = load_roster()
+    rec = client_record(client, roster)
+    if not rec:
+        return f"'{client}' isn't on the roster."
+    canonical = resolve_project(client, project, roster)
+    if not canonical:
+        return f"'{project}' isn't one of {rec['name']}'s projects."
+    rec["projects"] = [x for x in rec["projects"] if x != canonical]
+    save_roster(roster)
+    return f"Removed {canonical} from {rec['name']}."
 
 
 @mcp.tool()
@@ -302,10 +354,14 @@ def start_timer(client: str, project: str | None = None, notes: str | None = Non
         return f"Timer already running for {cur['client']} since {cur['start']}. Stop it first."
     roster = load_roster()
     client = resolve_client(client, roster) or client
+    note = unknown_client_note(client, roster)
+    if project:
+        note += unknown_project_note(client, project, roster)
+        project = resolve_project(client, project, roster) or project
     rec = {"client": client, "project": project, "notes": notes, "start": now().isoformat()}
     running_file().write_text(json.dumps(rec, indent=2))
     return (f"Started {client}" + (f" / {project}" if project else "") + f" at {rec['start']}."
-            + unknown_client_note(client, roster))
+            + note)
 
 
 @mcp.tool()
@@ -350,6 +406,9 @@ def log_entry(client: str, minutes: float, project: str | None = None,
     resolved = resolve_client(client, roster)
     note = "" if resolved else unknown_client_note(client, roster)
     client = resolved or client
+    if project:
+        note += unknown_project_note(client, project, roster)
+        project = resolve_project(client, project, roster) or project
     when = datetime.fromisoformat(day) if day else now()
     if when.tzinfo is None:
         when = when.replace(tzinfo=now().tzinfo)
@@ -381,6 +440,8 @@ def timesheet_report(client: str | None = None, project: str | None = None,
         round_to = roster["default_round_to"]
     if client:
         client = resolve_client(client, roster) or client
+        if project:
+            project = resolve_project(client, project, roster) or project
     start, end = resolve_window(since, until, now().date())
     rows = select(read_entries(), client, project, start, end)
     if not rows:

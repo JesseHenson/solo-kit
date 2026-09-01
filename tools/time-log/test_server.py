@@ -7,8 +7,8 @@
 from datetime import date
 
 import pytest
-from server import (resolve_client, resolve_window, round_minutes, select, summarize,
-                    unknown_client_note)
+from server import (resolve_client, resolve_project, resolve_window, round_minutes, select,
+                    summarize, unknown_client_note, unknown_project_note)
 
 WED = date(2026, 8, 26)  # a Wednesday
 
@@ -82,3 +82,26 @@ def test_unknown_client_note_names_the_roster():
 
 def test_unknown_client_note_is_silent_on_an_empty_roster():
     assert unknown_client_note("Gamma", {"clients": [], "default_round_to": 1}) == ""
+
+
+ROSTER_PROJECTS = {"clients": [{"name": "Acme Industries", "aliases": ["Acme"],
+                                "projects": ["Redesign", "Retainer"]},
+                               {"name": "Beta Co", "aliases": [], "projects": []}],
+                   "default_round_to": 1}
+
+
+@pytest.mark.parametrize("client,typed,expected", [
+    ("Acme Industries", "Redesign", "Redesign"),
+    ("Acme", "redesign", "Redesign"),
+    ("acme", "RETAINER", "Retainer"),
+    ("Acme", "SEO", None),
+    ("Beta Co", "anything", None),
+])
+def test_resolve_project_is_scoped_to_the_client(client, typed, expected):
+    assert resolve_project(client, typed, ROSTER_PROJECTS) == expected
+
+
+def test_unknown_project_note_only_fires_for_a_client_that_uses_projects():
+    assert "SEO" in unknown_project_note("Acme", "SEO", ROSTER_PROJECTS)
+    assert unknown_project_note("Beta Co", "anything", ROSTER_PROJECTS) == ""
+    assert unknown_project_note("Acme", "redesign", ROSTER_PROJECTS) == ""

@@ -17,9 +17,10 @@ this skill decides which tool to call and how to present what comes back.
 | `current_timer()` | "what am I on?", or before starting a second one |
 | `log_entry(client, minutes, project, notes, day)` | time already spent — "put 90 minutes on Acme yesterday" |
 | `timesheet_report(client, project, since, until, round_to)` | any question about totals |
-| `add_client(name, aliases, rate_per_hour)` | a client name you haven't seen before |
+| `add_client(name, aliases, rate_per_hour, projects)` | a client or project name you haven't seen before |
 | `list_clients()` | you need the roster mid-conversation |
 | `remove_client(name)` | they stop working with someone |
+| `remove_project(client, project)` | a project name was wrong or is finished |
 | `set_default_rounding(minutes)` | they say how their contracts bill |
 
 `since` takes `today`, `yesterday`, `this week`, `last week`, `this month`,
@@ -62,6 +63,11 @@ the end of these instructions, and the tools resolve aliases to the roster
 spelling on the way in. Use those names. Don't ask for a client you can infer
 from the roster, and don't carry names only in the conversation — a name you
 were told but never passed to `add_client` is gone by the next chat.
+
+**Projects work the same way, but quieter.** They hang off a client, and only a
+client that already has projects on file gets asked about an unfamiliar one —
+plenty of people bill straight to a client and never use projects. Don't push
+projects on someone who hasn't mentioned them.
 
 **A new name is a question, not a new client.** If a tool comes back saying a
 name isn't on the roster, stop and ask: new client, or another spelling of one
