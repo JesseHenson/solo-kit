@@ -2,7 +2,7 @@
   "manifest_version": "0.4",
   "name": "time-log",
   "display_name": "Time Log",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "Timer and timesheet reports over a plaintext file on your own machine.",
   "long_description": "Start and stop a timer, log time after the fact, and ask for totals by client, project, or period. Entries are one JSON object per line in a file you own and can read, grep, or back up \u2014 nothing is stored on anyone else's server.",
   "author": {
@@ -79,7 +79,7 @@
     },
     {
       "name": "dashboard",
-      "description": "Open a live dashboard and start desktop budget alerts"
+      "description": "Live dashboard as an inline artifact or a local page, plus desktop alerts"
     },
     {
       "name": "set_default_rounding",

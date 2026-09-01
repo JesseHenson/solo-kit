@@ -48,7 +48,7 @@
   <div id="budgets"></div>
   <div id="today" class="card"></div>
   <footer>
-    <span>Updated <span id="stamp"></span> · refreshes every minute</span>
+    <span id="stampline">Updated <span id="stamp"></span> · refreshes every minute</span>
     <span id="alerts">Alerts come from time-log itself</span>
   </footer>
 </main>
@@ -126,5 +126,10 @@ function paintStatic() {
 paintStatic();
 render();
 setInterval(render, 1000);
-setTimeout(() => location.reload(), 60000);
+// an artifact has nowhere to reload from; only the file copy re-reads the log
+if (DATA.mode !== "artifact") setTimeout(() => location.reload(), 60000);
+if (DATA.mode === "artifact") {
+  document.getElementById("stampline").textContent =
+    "As of " + new Date(DATA.generated).toLocaleTimeString() + " · ask Claude to refresh";
+}
 </script>

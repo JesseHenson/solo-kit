@@ -24,7 +24,7 @@ this skill decides which tool to call and how to present what comes back.
 | `set_default_rounding(minutes)` | they say how their contracts bill |
 | `set_budget(client, project, hours)` | a project is quoted or capped |
 | `budget_status(client)` | "how are we doing against the estimate?" |
-| `dashboard()` | they want to watch the clock, want alerts, or are starting a long session on a tight budget |
+| `dashboard(as_artifact=True)` | they want to watch the clock or want alerts — publish the HTML it returns, verbatim |
 
 `since` takes `today`, `yesterday`, `this week`, `last week`, `this month`,
 `last month`, `all`, or `YYYY-MM-DD`. `until` narrows the far end.
@@ -89,6 +89,11 @@ guess — offer to set it with `add_client`.
 **A timer running eight hours or more is suspect.** You'll be told when one is.
 Raise it before anything else and offer to correct the end time; don't quietly
 log an overnight timer as a working day.
+
+**Show the dashboard as an artifact by default.** `dashboard(as_artifact=True)`
+returns a page to publish inline; a file on disk is a worse answer in a chat
+window. Use plain `dashboard()` only when they say they want it open all day —
+that copy re-reads the log every minute, the artifact doesn't.
 
 **Budget warnings arrive on their own.** Logging time to a project at 80% or
 more returns a BUDGET line, and near-limit projects are listed at the start of

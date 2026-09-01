@@ -558,12 +558,16 @@ def start_watcher() -> str:
 
 
 @mcp.tool()
-def dashboard(open_now: bool = True, watch: bool = True) -> str:
+def dashboard(open_now: bool = True, watch: bool = True, as_artifact: bool = False) -> str:
     """Write a live dashboard — running clock, budget burn, today's total — and open it.
 
     The page ticks the running timer in the browser and counts it against the
     budget as it goes, so someone watching sees the limit coming instead of
     being told after they've passed it. It refreshes itself every minute.
+
+    `as_artifact` returns the HTML instead of writing it, for a client that can
+    render it inline. That copy can't refresh itself — it shows the log as of
+    now — so prefer the file when they want to leave it open all day.
     """
     roster = load_roster()
     entries = read_entries()
@@ -588,9 +592,18 @@ def dashboard(open_now: bool = True, watch: bool = True) -> str:
                   "entries": [{"client": e["client"], "project": e.get("project"),
                                "hours": round(float(e["minutes"]) / 60, 2)} for e in today]},
     }
+    data["mode"] = "artifact" if as_artifact else "file"
     template = (Path(__file__).parent / "assets" / "dashboard.html").read_text()
+    page = template.replace("/*__DATA__*/{}", json.dumps(data))
+    if as_artifact:
+        return ("Publish the HTML below as an artifact, verbatim — it is self-contained and "
+                "already tested, so don't rewrite, restyle, or summarize it. The clock ticks "
+                "and counts the running session against the budget, but an artifact can't "
+                "re-read the log: it shows the log as of now, so regenerate it if they log "
+                "more time. Alerts: " + (start_watcher() if watch else "not watching")
+                + ".\n\n" + page)
     out = data_dir() / "dashboard.html"
-    out.write_text(template.replace("/*__DATA__*/{}", json.dumps(data)))
+    out.write_text(page)
     if open_now:
         try:
             webbrowser.open(out.as_uri())

@@ -27,15 +27,27 @@ they work when Claude Desktop is closed, which a schedule does not.
 
 ## Show them the clock instead
 
-`dashboard()` writes a page and opens it: the running timer counting up, that
+`dashboard(as_artifact=True)` hands you the page to publish inline, which is
+usually what someone wants in a chat client — it appears in the conversation,
+no browser trip, nothing to find later. Publish it verbatim; it's tested, and
+rewriting it is how the clock stops ticking.
+
+`dashboard()` on its own writes a file and opens it in the browser instead.
+Prefer that when they want it open all day on a second monitor: it re-reads the
+log every minute, so entries logged later appear on their own. The artifact
+can't do that — it shows the log as of the moment it was made, and needs
+regenerating after new time is logged.
+
+Either way it shows: the running timer counting up, that
 session already counted against the budget, the other budgeted jobs, and today's
-total. It re-reads the log every minute, so it stays true while they work.
+total. The clock ticks in both copies — it counts from a timestamp, so it stays
+live without reading anything.
 
 This is the honest answer to "warn me before I hit the limit". A tool result
 only exists when someone asks; a page on a second monitor is looked at. Offer it
 when they're about to start a long session on a tight budget.
 
-Opening it also starts a watcher, which is what actually buzzes: a small
+Either form starts the watcher, which is what actually buzzes: a small
 background process that checks every minute while the timer runs and sends a
 real Notification Centre banner at 80%, again at the limit, and once if a timer
 has run past eight hours. It stops itself when the timer stops.
